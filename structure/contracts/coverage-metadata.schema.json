@@ -1,0 +1,40 @@
+{
+  "additionalProperties": false,
+  "description": "Strict wire contract for coverage metadata; also exports JSON Schema.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "revision": {
+      "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$",
+      "title": "Revision",
+      "type": "string"
+    },
+    "coverage_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Coverage Sha256",
+      "type": "string"
+    },
+    "build_id": {
+      "minLength": 1,
+      "title": "Build Id",
+      "type": "string"
+    },
+    "scope": {
+      "minLength": 1,
+      "title": "Scope",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "revision",
+    "coverage_sha256",
+    "build_id",
+    "scope"
+  ],
+  "title": "CoverageMetadata",
+  "type": "object"
+}

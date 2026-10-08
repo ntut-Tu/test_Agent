@@ -1,0 +1,22 @@
+# 複製為根目錄 values.yaml 後填寫；字串與 secret 請保留引號。
+llm:
+  provider: "" # LangChain model_provider；需先以 uv add 安裝對應整合套件
+  model: ""
+  api_key: ""
+  options: {} # 傳給所選 provider 的其他參數，例如 base_url
+
+code_host:
+  provider: "gitlab" # gitlab 或 github
+  repository: "" # GitLab: group/project 或 project ID；GitHub: owner/repo
+  api_url: null # null 使用官方 API；自架 GitLab 請填 https://host/api/v4
+  token: ""
+
+jenkins:
+  artifact_url: "" # 指定 build 的 JaCoCo / Cobertura XML artifact URL
+  metadata_url: null # 同 build 的 coverage-metadata.json；沒有 trace 時必填
+  trace_url: null # 同 build 的 Java per-test trace JSON；尚未配置時只有 LLM 推薦
+  username: ""
+  api_token: "" # 與 username 一起填寫，公開 artifact 可兩者留空
+
+analysis:
+  max_test_files: 20

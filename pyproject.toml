@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codebase-analysis-agent"
+version = "0.1.0"
+description = "Remote PR, coverage, and test context collection for codebase analysis"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain>=1.4.3",
+    "pydantic>=2.13.5",
+    "pyyaml>=6.0.3",
+    # 0.26.0 corrupts Point references; see upstream issue #472.
+    "tree-sitter==0.25.2",
+    "tree-sitter-java>=0.23.5",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["I", "F401", "F403", "TID252"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["codebase_analysis", "scripts", "tests"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.10",
+]

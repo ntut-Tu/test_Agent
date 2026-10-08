@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "coverage_sha256": "8fb5e094d1df6a733c65f7d4e939ec4deed651c288fbd35e35b6e4e61ae1bb65",
+  "build_id": "shipping/42",
+  "scope": "Maven test",
+  "complete": true,
+  "tests": [
+    {
+      "test": {
+        "path": "src/test/java/demo/ShippingServiceTest.java",
+        "class_name": "demo.ShippingServiceTest",
+        "name": "regularShipping",
+        "line": 8
+      },
+      "calls": [
+        {
+          "path": "src/main/java/demo/ShippingService.java",
+          "class_name": "demo.ShippingService",
+          "name": "fee",
+          "line": 3
+        }
+      ]
+    }
+  ]
+}
