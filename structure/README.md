@@ -10,6 +10,13 @@
 ```text
 test_Agent/
 ├── pyproject.toml                     Python 套件資訊、依賴與建置設定
+├── Dockerfile                         非 root、uv 鎖定依賴的 runtime image
+├── deploy/
+│   ├── compose.yaml                   Agent service、健康檢查與持久化 volume
+│   ├── compose.proxy.yaml             加入共用 Traefik 網路
+│   ├── compose.jenkins.yaml           加入 Jenkins 網路
+│   ├── compose.port.yaml              可選 host port
+│   └── traefik/test-agent.yaml        本專案獨立維護的 router／middleware／service
 ├── uv.lock                            uv 鎖定的依賴版本
 ├── values.example.yaml                設定範本
 ├── values.yaml                        使用者設定與 secret，已排除版本控制
@@ -18,17 +25,29 @@ test_Agent/
 │   ├── README.md                      目前專案架構
 │   ├── coverage-analysis.md           Coverage 設計與實作報告
 │   ├── existing-tests-analysis.md     Existing Tests 設計與實作報告
+│   ├── controller-deployment.md       HTTP API、任務、部署與實測結果
+│   ├── java-trace-spike.md            Java producer spike 設計與驗證結果
 │   └── contracts/                     Jenkins coverage／trace schema 與 trace 合成範例
 ├── scripts/
+│   ├── serve.sh                       啟動本機 HTTP service
+│   ├── deploy.sh / deploy.py           建置、啟動容器並註冊路由
+│   ├── register-traefik-route.sh       路由註冊 shell 入口
+│   ├── register_traefik_route.py       獨立掛載路由、SIGHUP reload 與遷移回復
 │   ├── setup.sh                       安裝依賴、建立缺少的 values.yaml
 │   ├── test.sh                        執行本機測試
+│   ├── verify-trace-spike.sh          唯讀驗證外部 Java producer fixture 產物
 │   ├── smoke-test.sh                  遠端 smoke test 的 shell 入口
 │   └── smoke_test.py                  smoke test 參數、結果顯示與 exit code
 ├── src/
 │   └── codebase_analysis/
 │       ├── __init__.py                 匯出主要流程與結果型別
 │       ├── bootstrap.py                組裝具體工具、collector 與模型
+│       ├── server.py                   ASGI composition root 與 worker 生命週期
+│       ├── presentation/http/
+│       │   ├── routes.py               HTTP controller、認證與回應
+│       │   └── schemas.py              HTTP request DTO 驗證
 │       ├── domain/
+│       │   ├── jobs.py                 Build 身分與任務資料
 │       │   ├── models.py               領域資料型別
 │       │   ├── context.py              Java method、focal method、test context
 │       │   ├── trace.py                Per-test 呼叫證據、版本與雜湊核對
@@ -36,10 +55,15 @@ test_Agent/
 │       │   ├── coverage.py             coverage 與變更檔案、新增行比對
 │       │   └── validation.py           驗證模型引用的行號與測試路徑
 │       ├── application/
+│       │   ├── jobs.py                 任務 scope、執行協調與 JobStore port
 │       │   ├── ports.py                工具與模型的 Protocol 介面
 │       │   ├── agent.py                資料收集與三個 LLM 操作的流程
 │       │   └── smoke.py                非 LLM 遠端檢查流程
 │       └── infrastructure/
+│           ├── jobs/
+│           │   ├── analysis.py         建立固定 build 的 artifact URLs
+│           │   ├── sqlite.py           原子提交、領取、結果保存與 retry
+│           │   └── worker.py           背景執行與單一 worker 排他鎖
 │           ├── settings.py             YAML 讀取、設定驗證與 secret 型別
 │           ├── http.py                 HTTP GET、逾時與重新導向處理
 │           ├── errors.py               遠端整合錯誤型別
@@ -60,10 +84,13 @@ test_Agent/
 │               └── langchain.py        三個 LLM 操作與結構化輸出
 └── tests/
     ├── fakes.py                        HTTP 與資料來源替身
+    ├── verify_java_trace_spike.py      外部 producer 產物相容性檢查
     ├── java_fixtures.py                Java source、XML 與 trace 合成資料
     ├── test_java_context.py            方法對應、trace、fallback 與證據驗證
     ├── test_java_integration.py        正式 adapters 的組裝整合測試
     ├── test_java_parser_process.py     大型 Java 行號與 native process 退出回歸測試
+    ├── test_controller.py              HTTP、認證、scope、持久化、去重與錯誤處理
+    ├── test_route_registration.py      路由 reload、掛載保留與遷移失敗回復
     ├── test_agent.py                   分析流程與引用驗證
     ├── test_architecture.py            核心層的 import 邊界
     ├── test_code_hosts.py              GitHub／GitLab 擷取
@@ -89,12 +116,21 @@ test_Agent/
 | `application/smoke.py` | `CollectionSmokeTest`、`SmokeCheck` | 逐項檢查遠端收集能力，保留各項成功、警告、失敗或略過結果 |
 | `infrastructure/` | API client、retriever、parser、model adapter、settings | 處理外部服務、資料格式與套件整合 |
 | `bootstrap.py` | `build_collector()`、`build_agent()` | 選擇具體實作並以建構子注入應用流程 |
+| `presentation/http/` | `analysis_router()`、`SubmitAnalysis` | HTTP 認證、請求驗證與回應 |
+| `application/jobs.py` | `AnalysisJobs`、`JobStore` | 任務範圍與執行協調 |
+| `infrastructure/jobs/` | `SqliteJobStore`、`AnalysisWorker`、`settings_for_build()` | 持久化、背景 worker 與 artifact 綁定 |
+| `server.py` | `create_app()` | 組合 HTTP、任務儲存與 worker 生命週期 |
 | `scripts/smoke_test.py` | `main()` | 解析操作參數、呼叫組裝與檢查流程、格式化結果 |
 
 以下箭頭代表程式依賴方向：
 
 ```mermaid
 flowchart TD
+    Server[server.py] --> HTTP[presentation/http]
+    Server --> App
+    Server --> Infra
+    HTTP --> App
+    HTTP --> Domain
     Entry[呼叫端 / scripts] --> Bootstrap[bootstrap.py]
     Entry --> Settings[infrastructure/settings.py]
     Entry --> App[application]
@@ -108,7 +144,8 @@ flowchart TD
 - `domain` 只依賴標準庫與自身。
 - `application` 只依賴領域層與應用層自身，透過 Protocol 操作注入的物件。
 - `infrastructure` 提供符合介面的實作；採用結構型別，不必繼承 Protocol。
-- `bootstrap.py` 同時知道應用介面與具體實作，負責組裝。
+- `bootstrap.py` 組裝分析流程，`server.py` 組裝 HTTP 與任務元件。
+- `presentation/http` 將 HTTP 請求轉為 domain 資料，呼叫 application；不執行 SQL 或模型呼叫。
 - `scripts` 處理操作入口與顯示；收集、比對、檢查流程位於應用層及領域層。
 
 核心層的 import 邊界由 `tests/test_architecture.py` 檢查。
@@ -134,7 +171,8 @@ PR 與測試擷取工具共用所選平台的 API client。
 
 ## 完整分析執行流程
 
-入口為呼叫端使用 `load_settings()`、`build_agent()`，再執行 `agent.run(number)`。
+HTTP 入口先將 Jenkins build 身分放入持久佇列；worker 以該 build 的固定 URLs 組裝 agent，
+再呼叫 `agent.run(number, build=build)`。Library 呼叫端也可直接組裝並執行 `agent.run(number)`。
 
 ```mermaid
 sequenceDiagram
@@ -223,14 +261,25 @@ Coverage 比對需要 PR／MR 與 coverage 都取得成功，且 coverage_bindin
 
 ## 設定與外部邊界
 
-- `values.yaml` 由使用者填寫，包含 LLM、code host、Jenkins 與收集上限；
+- `values.yaml` 由使用者填寫，包含 LLM、code host、Jenkins、收集上限、HTTP service 與部署設定；
   `settings.py` 驗證設定，`bootstrap.py` 將憑證傳入具體實作。
 - Repo 資料透過 GitHub／GitLab API 取得，測試檔案使用 PR／MR 的來源 commit，支援 fork。
-- Jenkins 使用設定指定的 artifact URL。metadata 或 trace 至少需要一項，
+- 手動 smoke 使用設定指定的 artifact URL；HTTP 任務使用可信 Jenkins base URL 與提交的固定 build 身分。metadata 或 trace 至少需要一項，
   核對 revision 與 XML 雜湊；缺少或不符時不進行行號比對。
 - LLM 提示輸入有長度與候選數上限，引用驗證只確認行號與路徑存在於收集資料。
-- Trace producer／Java profiler 尚待 Jenkins 端接入。此專案提供 Agent 端 schema 與解析。
-- 目前交付的是可由其他服務呼叫的 Python 套件與操作腳本；專案未包含 HTTP server、
-  webhook、Jenkins build 觸發、sandbox、Merge Tool 或部署設定。
+- Trace producer 已完成本機 [Java spike](java-trace-spike.md)，PR pipeline 已自動產生 build #7 的 trace，Agent 已完成下載與版本核對。
+  Java module 已移至 `PDD/jenkins-pipelines/tools/java-test-trace/`，由 Jenkins agent／sandbox 執行。
+  Python／LLM pod 僅下載、解析與分析 artifacts，不建置或載入 producer JAR。
+- 專案包含 Python 套件、HTTP controller、任務 worker 與容器部署。Jenkins 提交完成的 build；
+  Agent 不負責觸發 Jenkins Java 測試、Step 2 sandbox 或 Merge Tool。
 
 安裝與執行指令見[專案 README](../README.md)。
+
+
+## HTTP controller 與部署結構
+
+新增 `presentation/http/` 負責 HTTP 路由／DTO；`application/jobs.py` 協調任務；
+`domain/jobs.py` 定義 CI 與任務身分；`infrastructure/jobs/` 負責 SQLite、worker、artifact URL 綁定。
+`server.py` 是 ASGI composition root。HTTP 與 persistence 不進入 domain／application。
+部署來源位於根目錄 `Dockerfile`、`deploy/` 與 `scripts/deploy.sh`。
+完整元件、API、生命週期與網路見 [controller-deployment.md](controller-deployment.md)。

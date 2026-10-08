@@ -1,0 +1,9 @@
+services:
+  agent:
+    networks:
+      - default
+      - jenkins
+networks:
+  jenkins:
+    external: true
+    name: ${JENKINS_NETWORK}

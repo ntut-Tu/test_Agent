@@ -13,6 +13,7 @@ from codebase_analysis.application.ports import (
 )
 from codebase_analysis.domain.context import group_focal_methods
 from codebase_analysis.domain.coverage import match_coverage, verify_coverage_binding
+from codebase_analysis.domain.jobs import BuildRequest
 from codebase_analysis.domain.models import AgentResult, AnalysisResult, LlmFindings
 from codebase_analysis.domain.paths import is_java_test_path
 from codebase_analysis.domain.trace import dynamic_contexts
@@ -136,11 +137,12 @@ class CodebaseAnalysisAgent:
         self.collector = collector
         self.model = model
 
-    def run(self, number: int) -> AgentResult:
+    def run(self, number: int, *, build: BuildRequest | None = None) -> AgentResult:
         """Collect evidence, run the three LLM operations, and validate references.
 
         Args:
             number: Positive repository-scoped PR number or MR IID.
+            build: Optional submitted CI identity, verified before model calls.
 
         Returns:
             Collected context and validated model findings.
@@ -152,6 +154,13 @@ class CodebaseAnalysisAgent:
         Collection and model errors propagate without returning a partial result.
         """
         context = self.collector.run(number)
+        if build is not None:
+            if context.pull_request.head_ref != build.head_sha:
+                raise ValueError("PR head changed since the submitted build")
+            if context.coverage_provenance is None or context.coverage_provenance.build_id != build.build_id:
+                raise ValueError("Coverage belongs to a different build")
+            if context.trace is None or context.trace.build_id != build.build_id:
+                raise ValueError("Trace belongs to a different build")
         findings = LlmFindings(
             pr_summary=self.model.summarize_pr(context),
             uncovered_line_analysis=self.model.identify_uncovered_lines(context),

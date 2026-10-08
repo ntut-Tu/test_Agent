@@ -1,0 +1,4 @@
+services:
+  agent:
+    ports:
+      - "${AGENT_HOST_PORT}:8080"

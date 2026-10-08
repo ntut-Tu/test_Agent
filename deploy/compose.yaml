@@ -1,0 +1,26 @@
+name: test-agent
+services:
+  agent:
+    image: test-agent:local
+    build:
+      context: ..
+      args:
+        AGENT_UID: ${AGENT_UID:-1000}
+        AGENT_GID: ${AGENT_GID:-1000}
+    container_name: test-agent
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ../values.yaml:/app/values.yaml:ro
+      - analysis-data:/data
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    stop_grace_period: 40s
+volumes:
+  analysis-data:

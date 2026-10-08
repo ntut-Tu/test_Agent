@@ -8,3 +8,5 @@ build/
 dist/
 /values.yaml
 /.idea/
+
+/.state/

@@ -12,6 +12,29 @@ from tests.fakes import StubCoverage, StubPrFetcher, StubTestRetriever
 
 
 class AgentTests(unittest.TestCase):
+    def test_build_mismatch_is_rejected_before_any_llm_call(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+
+        from codebase_analysis.domain.jobs import BuildRequest
+
+        build = BuildRequest('github', 'org/repo', 31, 'a' * 40, 'pdd/test', 9)
+        for head, coverage_id, trace_id in [
+            ('b' * 40, 'pdd/test/9', 'pdd/test/9'),
+            ('a' * 40, 'pdd/test/8', 'pdd/test/9'),
+            ('a' * 40, 'pdd/test/9', 'pdd/test/8'),
+        ]:
+            context = SimpleNamespace(
+                pull_request=SimpleNamespace(head_ref=head),
+                coverage_provenance=SimpleNamespace(build_id=coverage_id),
+                trace=SimpleNamespace(build_id=trace_id),
+            )
+            collector, model = Mock(), Mock()
+            collector.run.return_value = context
+            with self.subTest(head=head, coverage=coverage_id, trace=trace_id), self.assertRaises(ValueError):
+                CodebaseAnalysisAgent(collector, model).run(31, build=build)
+            self.assertEqual(model.mock_calls, [])
+
     def test_agent_runs_three_distinct_llm_steps(self):
         pr = PullRequest(1, "Fix", "", "url", "sha", "base", (ChangedFile("src/mod.py", "modified", "@@ -1 +1 @@\n-a\n+b"),))
 

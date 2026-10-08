@@ -1,0 +1,17 @@
+http:
+  routers:
+    test-agent:
+      rule: "Path(`/test-agent`) || PathPrefix(`/test-agent/`)"
+      entryPoints: [web]
+      priority: 200
+      middlewares: [test-agent-prefix]
+      service: test-agent
+  middlewares:
+    test-agent-prefix:
+      stripPrefix:
+        prefixes: [/test-agent]
+  services:
+    test-agent:
+      loadBalancer:
+        servers:
+          - url: http://test-agent:8080

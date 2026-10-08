@@ -36,6 +36,8 @@ def build_collector(settings: CollectionSettings) -> CodebaseAnalysis:
     Raises:
         ValueError: Repository or collection settings are invalid.
     """
+    if not settings.jenkins.artifact_url:
+        raise ValueError("Select a Jenkins build before constructing the collector")
     client = HttpClient()
     host = settings.code_host
     token = host.token.get_secret_value() or None

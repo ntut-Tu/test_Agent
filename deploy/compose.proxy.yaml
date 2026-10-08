@@ -1,0 +1,9 @@
+services:
+  agent:
+    networks:
+      - default
+      - proxy
+networks:
+  proxy:
+    external: true
+    name: ${TRAEFIK_NETWORK}

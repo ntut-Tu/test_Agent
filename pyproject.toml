@@ -8,12 +8,15 @@ version = "0.1.0"
 description = "Remote PR, coverage, and test context collection for codebase analysis"
 requires-python = ">=3.11"
 dependencies = [
+    "fastapi>=0.143.0",
     "langchain>=1.4.3",
+    "langchain-google-genai>=4.4.0",
     "pydantic>=2.13.5",
     "pyyaml>=6.0.3",
     # 0.26.0 corrupts Point references; see upstream issue #472.
     "tree-sitter==0.25.2",
     "tree-sitter-java>=0.23.5",
+    "uvicorn>=0.54.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -34,5 +37,6 @@ ban-relative-imports = "all"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "ruff>=0.16.10",
 ]

@@ -1,6 +1,6 @@
 # Codebase analysis
 
-This package analyzes Java/Spring/Maven PRs and merge requests. It reads remote source, Jenkins coverage, existing tests, and optional per-test invocation traces. Java AST analysis maps uncovered patch lines to methods. Observed test callers are retained as evidence; LangChain explains coverage gaps and recommends test contexts for methods without observed callers. The surrounding workflow calls `CodebaseAnalysisAgent`; shell scripts provide setup, local tests, and live collection checks.
+This package analyzes Java/Spring/Maven PRs and merge requests. It reads remote source, Jenkins coverage, existing tests, and optional per-test invocation traces. Java AST analysis maps uncovered patch lines to methods. Observed test callers are retained as evidence; LangChain explains coverage gaps and recommends test contexts for methods without observed callers. Jenkins submits completed builds to the FastAPI controller through shared Traefik. A persistent worker calls `CodebaseAnalysisAgent`; shell scripts provide deployment, setup, local tests, and live collection checks.
 
 功能設計與實作報告：
 
@@ -17,17 +17,26 @@ structure/
   README.md                current project architecture
   coverage-analysis.md     coverage design and implementation report
   existing-tests-analysis.md  test-context design and implementation report
+  controller-deployment.md HTTP API, persistent jobs, container and shared Traefik
   contracts/               Jenkins coverage/trace schemas and trace example
+Dockerfile                 non-root uv-based runtime image
+deploy/                    Compose overlays and this project’s Traefik route
 values.example.yaml        versioned configuration template
 values.yaml                user configuration and secrets (ignored by Git)
 scripts/
+  deploy.sh / deploy.py    build and deploy the Agent container
+  register-traefik-route.sh / register_traefik_route.py  mount/reload Agent route
+  serve.sh                 start the HTTP service locally
   setup.sh                 install locked dependencies and create missing values.yaml
   test.sh                  run tests
   smoke-test.sh            live remote checks without LLM calls
   smoke_test.py            smoke-test argument parsing and output formatting
 src/codebase_analysis/
+  server.py                ASGI composition root and worker lifecycle
+  presentation/http/       HTTP controller and request schemas
   bootstrap.py             composition root for configured concrete dependencies
   domain/
+    jobs.py                immutable build identity and job data
     models.py              normalized data types
     context.py             Java methods, focal methods, and test contexts
     trace.py               per-test evidence and revision/artifact verification
@@ -35,10 +44,12 @@ src/codebase_analysis/
     coverage.py            coverage and changed-line matching
     validation.py          validate model findings against collected evidence
   application/
+    jobs.py                job scope, execution coordination and persistence port
     agent.py               collection and three LLM operations, composed via interfaces
     smoke.py               independent checks of the collection capabilities
     ports.py               tool and model interfaces
   infrastructure/
+    jobs/                  SQLite persistence, worker and fixed build URLs
     settings.py            YAML loading, validation, and secret fields
     http.py                HTTP transport
     errors.py              remote integration errors
@@ -80,10 +91,12 @@ Remote retrieval and parsing are deterministic infrastructure operations. Covera
 - `code_host`：GitLab／GitHub、repository、API URL 與 token。
 - `jenkins`：coverage artifact URL、`metadata_url`、可選 `trace_url`、username 與 api_token。
 - `analysis`：擷取測試檔案的數量上限。
+- `service`：controller token、路徑前綴、任務資料目錄與佇列上限。
+- `deployment`：Docker context、共用 Traefik 與 Jenkins 網路。
 
-這是 YAML 設定檔，不包含 Helm template 或部署功能。`values.example.yaml` 僅保留空白 secret；實際填寫的 `values.yaml` 已加入 `.gitignore`。
+這是 YAML 設定檔；部署腳本直接讀取其中設定，不使用 Helm template。`values.example.yaml` 僅保留空白 secret；實際填寫的 `values.yaml` 已加入 `.gitignore`。
 
-選定模型供應商後，以 `uv add <對應整合套件名稱>` 安裝其 LangChain 套件。`llm.options` 會傳給 [`init_chat_model`](https://reference.langchain.com/python/langchain/chat_models/base)，參數名稱依 provider 而定；需要不同憑證參數的 provider 也可在此填寫。模型需支援目前使用的 `with_structured_output`。
+已包含 Gemini 的 `langchain-google-genai`，provider 填 `google_genai`。若改用其他供應商，以 `uv add <對應整合套件名稱>` 安裝其 LangChain 套件。`llm.options` 會傳給 [`init_chat_model`](https://reference.langchain.com/python/langchain/chat_models/base)，參數名稱依 provider 而定；需要不同憑證參數的 provider 也可在此填寫。模型需支援目前使用的 `with_structured_output`。
 
 既有服務可用明確的設定檔路徑組裝 agent；PR／MR 編號由呼叫端提供：
 
@@ -178,3 +191,30 @@ uv run ruff check src tests scripts
 # 自動整理排序與可安全修正的問題
 uv run ruff check --fix src tests scripts
 ```
+
+## Java trace producer spike
+
+Java producer 位於 `/home/mo/Documents/PDD/jenkins-pipelines/tools/java-test-trace/`，
+由 Jenkins agent 或 sandbox 的測試 JVM 載入。它獨立產生 coverage 與 trace JSON，
+不依賴本 Python 專案；LLM Agent pod 僅下載、解析與分析 artifacts。
+
+此專案保留開發期的唯讀 consumer 相容性檢查：
+
+```bash
+./scripts/verify-trace-spike.sh /下載解壓路徑/tools/java-test-trace/spike-fixture
+```
+
+先依報告在 Jenkins 執行 `pdd/java-trace-spike`，下載該 build 全部 artifacts 並保留目錄結構。
+Job DSL／Jenkinsfile 已備妥，尚待發布來源並執行 seed；目前尚無 Jenkins spike 執行結果。
+Consumer 指令只使用 uv／Python，不啟動 JVM 或重新產生 trace。
+PR #31／Jenkins build #7 已產生真實 trace，Agent 容器已完成下載、綁定與 Gemini 分析驗證；trace 的 `complete=false` 表示部分追蹤。詳見 [設計與結果報告](structure/java-trace-spike.md)。
+
+
+## HTTP controller 與容器
+
+Jenkins 透過共用 Traefik 的 `/test-agent/analyses` 提交 build 身分。
+Controller 回傳任務 ID；worker 自動下載該 build 的 coverage／trace、核對版本並執行三個 LLM 分析。
+任務以 SQLite 保存於 container volume，相同請求重送沿用既有結果。
+
+部署程式、Dockerfile 與 Traefik 路由均放在本專案。
+設定、API、Jenkins 接線、部署方式與限制見 [controller 與部署說明](structure/controller-deployment.md)。

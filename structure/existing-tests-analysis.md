@@ -123,13 +123,16 @@ Constructor 的 `name` 使用 source 類別名稱。
 `complete: false` 的已觀察正向證據仍可使用；沒有紀錄不能解釋成從未呼叫。
 即使 `complete: true`，也只代表宣告 scope，不代表整個 repo 的全部測試。
 
-## 5. Jenkins producer 的待接入工作
+## 5. Jenkins producer 自動接入與驗證狀態
 
-依目前確認的範圍，已完成 Agent 端契約與解析；Jenkins 尚未安裝或接上 profiler。
-Jenkins 端需完成以下事項後，才能取得真實 dynamic context：
+已完成 Agent 端契約與解析，以及經使用者同意的 [Java trace spike](java-trace-spike.md)。
+Spike 已驗證 Byte Buddy＋JUnit listener＋Spring HTTP 上下文傳遞。
+`test-all-server` 已補上自動接入程式；每個 PR 由 poll 自動排入，不需逐次修改 POM 或填 URL。
+程式已通過設定測試、Java 編譯與 Jenkinsfile linter；PR #31／Jenkins build #7 已產生 trace，Agent 已驗證下載、解析及版本綁定。
+目前 producer 的責任與驗證條件如下：
 
 1. 在正確 commit 執行 Java 測試，產生 coverage 與 per-test 呼叫紀錄。
-2. 將 profiler／instrumentation 輸出轉換為上述契約；工具及其原生格式尚未選定。
+2. 在測試執行環境呼叫 Java finalizer，傳入真實 commit／build metadata；Python 端只讀取產物。
 3. 正確標記測試邊界，避免平行測試、非同步工作或 Spring 背景執行緒被歸到錯誤測試。
 4. 將 JVM class／method 位置轉成正確 module、source file、class name 與方法行號。
    不能把 Spring proxy 或合成方法的名稱直接冒充 source 方法。
@@ -139,11 +142,11 @@ Jenkins 端需完成以下事項後，才能取得真實 dynamic context：
 可在 Jenkins 歸檔已產生的檔案，例如：
 
 ```groovy
-archiveArtifacts artifacts: 'reports/jacoco.xml,reports/java-test-trace.json',
+archiveArtifacts artifacts: 'agent-analysis/jacoco.xml,agent-analysis/java-test-trace.json',
                  allowEmptyArchive: false
 ```
 
-這段只負責保存檔案，不會產生 trace。Profiler 選型或可行性 spike 仍須先確認。
+這段只負責保存檔案，不會產生 trace。已完成的 spike 範圍與結果見上述報告；新增 spike 仍須先確認。
 參考：[Jenkins artifact 歸檔](https://www.jenkins.io/doc/pipeline/steps/core/#archiveartifacts-archive-the-artifacts)。
 
 ## 6. 程式位置
@@ -172,5 +175,8 @@ dynamic context。結果保留候選總數、截斷狀態與原始 normalized tr
 Spring configuration 或外部 helper 實作。Lambda、合成方法、無法還原 source 的
 proxy 呼叫需由 producer 正規化或標示資料不完整。
 
-目前沒有執行真實 Jenkins／Maven／Gemini 驗證；本機 fixture 測試不等於實際
-Jenkins profiler 接入已完成。
+PR #31／Jenkins build #7 的真實 trace 含 3 筆 test 記錄，`complete=false`。
+2026-10-09（台灣時間）Agent 容器完成 Gemini 分析，取得 1 個候選測試檔案、4 個測試宣告。
+這份 trace 沒有對應到 7 個缺口方法的 dynamic context，結果包含 1 筆 `evidence=llm` 的測試推薦。
+這是模型推薦，不能當作已觀察到的測試呼叫；trace 下載成功也不表示覆蓋或呼叫追蹤完整。
+Controller 與容器的實測結果詳見 [部署說明](controller-deployment.md)。

@@ -84,7 +84,7 @@ Smoke test 顯示 `coverage_binding: FAIL`，略過 coverage 比對；獨立的�
 
 `/home/mo/Documents/PDD/jenkins-pipelines/pipelines/github-pr-test.Jenkinsfile`
 現在先在固定 PR head 執行 Maven／JaCoCo，保存
-`agent-analysis/jacoco.xml` 與 `agent-analysis/coverage-metadata.json`，
+`agent-analysis/jacoco.xml`、`agent-analysis/coverage-metadata.json` 與 `agent-analysis/java-test-trace.json`，
 再進行原有的合併後測試。Agent 讀取 head 報告，避免合併帶來的行號差異。
 
 Maven 執行 `clean`、JaCoCo `prepare-agent`、`verify`、`report`，使用專案 POM 的測試範圍。
@@ -181,8 +181,9 @@ LLM 可分析候選的語意；收集到的未覆蓋事實仍保留在 `Analysis
 segmentation fault，新增大型 Java 子程序回歸測試可重現舊版故障，改版後通過。
 上游已記錄 [Point 引用計數回歸問題](https://github.com/tree-sitter/py-tree-sitter/issues/472)。
 
-Jenkinsfile 已補上 head coverage 與 metadata 的產生、封存；需部署此版本並執行新 build，
-才有真實 artifact 可用。Jenkins Declarative 語法驗證已通過；目前 build #6 已成功，
-Agent 已完成該 build 的唯讀接入驗證。
-Per-test profiler／trace producer 仍未實作。Trace 契約及 producer 責任見
-[Existing Tests 設計與實作報告](existing-tests-analysis.md)。
+Jenkins build #7 已封存 PR #31 的 head coverage、metadata 與 per-test trace。
+Agent 容器經真實遠端下載與版本／digest 核對，取得 22 個未覆蓋變更行、7 個 focal methods，
+沒有 unmatched paths 或 unassigned lines。2026-10-09（台灣時間）經使用者授權，
+透過 controller 執行 Gemini 完整分析成功，產出 22 筆行號分析。
+Trace 契約及 producer 責任見 [Existing Tests 設計與實作報告](existing-tests-analysis.md)；
+HTTP 與本機部署驗證見 [controller 部署說明](controller-deployment.md)。

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Annotated, Any, Literal, TypeVar
+from urllib.parse import urlsplit
 
 import yaml
 from pydantic import (
@@ -76,14 +77,18 @@ class JenkinsSettings(_SettingsSection):
     """Location and optional Basic authentication for a coverage artifact.
 
     Attributes:
-        artifact_url: URL of one build's JaCoCo or Cobertura XML artifact.
+        artifact_url: Optional fixed build XML URL used by manual collection.
+        base_url: Container-reachable Jenkins root for automatic build analysis.
+        job_name: Allowed Jenkins job for submitted analysis requests.
         username: Jenkins user; empty for an unauthenticated request.
         api_token: API token supplied together with username.
         trace_url: Optional version-1 per-test Java trace artifact URL.
         metadata_url: Coverage provenance JSON; required when trace is absent.
     """
 
-    artifact_url: NonEmptyString
+    artifact_url: NonEmptyString | None = None
+    base_url: NonEmptyString | None = None
+    job_name: NonEmptyString = "pdd/test-all-server"
     username: str = ""
     api_token: SecretStr = SecretStr("")
     trace_url: NonEmptyString | None = None
@@ -99,6 +104,12 @@ class JenkinsSettings(_SettingsSection):
         Raises:
             ValueError: Only one credential is supplied.
         """
+        if not self.artifact_url and not self.base_url:
+            raise ValueError("artifact_url or base_url is required")
+        if self.base_url:
+            parsed = urlsplit(self.base_url)
+            if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+                raise ValueError("base_url must be an HTTP(S) Jenkins root without credentials/query")
         if bool(self.username) != bool(self.api_token.get_secret_value()):
             raise ValueError("username and api_token must be supplied together")
         return self
@@ -128,6 +139,25 @@ class CollectionSettings(_SettingsSection):
     analysis: AnalysisSettings = Field(default_factory=AnalysisSettings)
 
 
+class ServiceSettings(_SettingsSection):
+    """HTTP authentication, proxy prefix and durable single-instance job storage."""
+
+    api_token: SecretStr = SecretStr("")
+    root_path: str = "/test-agent"
+    data_directory: NonEmptyString = "/data"
+    max_pending: int = Field(default=100, ge=1, le=10000)
+
+
+class DeploymentSettings(_SettingsSection):
+    """Local Docker placement; optional networks may belong to the selected engine."""
+
+    docker_context: NonEmptyString = "default"
+    traefik_network: NonEmptyString | None = "pdd-network"
+    traefik_container: NonEmptyString = "pdd-traefik"
+    jenkins_network: NonEmptyString | None = None
+    published_port: int | None = Field(default=None, ge=1, le=65535)
+
+
 class Settings(CollectionSettings):
     """Complete values configuration, extending collection with model settings.
 
@@ -139,6 +169,8 @@ class Settings(CollectionSettings):
     """
 
     llm: LlmSettings
+    service: ServiceSettings = Field(default_factory=ServiceSettings)
+    deployment: DeploymentSettings = Field(default_factory=DeploymentSettings)
 
 
 _SettingsType = TypeVar("_SettingsType", bound=_SettingsSection)
@@ -191,5 +223,5 @@ def load_collection_settings(path: str | Path) -> CollectionSettings:
     """
     data = _read_values(path)
     if isinstance(data, dict):
-        data = {key: value for key, value in data.items() if key != "llm"}
+        data = {key: value for key, value in data.items() if key not in {"llm", "service", "deployment"}}
     return _validate_values(data, CollectionSettings)

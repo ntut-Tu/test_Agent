@@ -12,7 +12,9 @@ code_host:
   token: ""
 
 jenkins:
-  artifact_url: "" # 指定 build 的 JaCoCo / Cobertura XML artifact URL
+  base_url: null # 自動分析使用的 Jenkins 根網址，必須能從 Agent 容器連線
+  job_name: "pdd/test-all-server" # controller 只接受這個 Job
+  artifact_url: null # 指定 build 的 JaCoCo / Cobertura XML artifact URL
   metadata_url: null # 同 build 的 coverage-metadata.json；沒有 trace 時必填
   trace_url: null # 同 build 的 Java per-test trace JSON；尚未配置時只有 LLM 推薦
   username: ""
@@ -20,3 +22,16 @@ jenkins:
 
 analysis:
   max_test_files: 20
+
+service:
+  api_token: "" # 32+ 字元的隨機 token；Jenkins 使用相同 Bearer token
+  root_path: "/test-agent"
+  data_directory: "/data" # 容器的持久 volume；本機 serve 可改為 .state
+  max_pending: 100
+
+deployment:
+  docker_context: "default" # 明確選擇引擎，不切換使用者的目前 context
+  traefik_container: "pdd-traefik"
+  traefik_network: "pdd-network" # 共用代理與 Agent 同引擎時加入
+  jenkins_network: null # Jenkins 同引擎時可填 pdd-jenkins_default
+  published_port: null # 跨引擎代理才需要公開 Agent port
