@@ -9,11 +9,11 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from codebase_analysis.domain.jobs import BuildRequest
-from codebase_analysis.infrastructure.jobs.analysis import settings_for_build
-from codebase_analysis.infrastructure.jobs.sqlite import SqliteJobStore
-from codebase_analysis.infrastructure.settings import Settings
+from codebase_analysis.bootstrap import settings_for_build
+from codebase_analysis.models.task import BuildRequest
+from codebase_analysis.repositories.sqlite import SqliteJobStore
 from codebase_analysis.server import create_app
+from codebase_analysis.settings import Settings
 
 
 @dataclass

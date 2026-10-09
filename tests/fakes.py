@@ -1,14 +1,14 @@
 import json
 from dataclasses import dataclass
 
-from codebase_analysis.domain.models import (
+from codebase_analysis.lib.clients.http import Response
+from codebase_analysis.models.coverage import (
     CoverageProvenance,
     CoverageReport,
-    ExistingTest,
     FileCoverage,
-    PullRequest,
 )
-from codebase_analysis.infrastructure.http import Response
+from codebase_analysis.models.pull_request import PullRequest
+from codebase_analysis.models.source import ExistingTest
 
 
 class FakeHttp:

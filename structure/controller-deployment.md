@@ -23,14 +23,14 @@ Controller 只接受 `values.yaml` 配置的 repository／job，從 `jenkins.bas
 
 | 路徑 | 責任 |
 | --- | --- |
-| `presentation/http/routes.py` | HTTP controller、Bearer 認證、狀態碼與回應 |
-| `presentation/http/schemas.py` | HTTP request DTO／欄位驗證 |
-| `application/jobs.py` | 任務提交範圍、執行協調、JobStore port |
-| `application/agent.py` | 收集、CI 身分核對、三個 LLM 操作 |
-| `domain/jobs.py` | 不依賴 HTTP／DB 的 build 身分與任務資料 |
-| `infrastructure/jobs/sqlite.py` | SQLite 持久化、原子 enqueue／claim／retry |
-| `infrastructure/jobs/worker.py` | 背景 worker 與 volume 排他鎖 |
-| `infrastructure/jobs/analysis.py` | 由可信設定建立單次 build 的 artifact URL |
+| `controller.py` | HTTP controller、Bearer 認證、狀態碼與回應 |
+| `schemas/http.py` | HTTP request DTO／欄位驗證 |
+| `tasks.py`、`repositories/base.py` | 任務提交範圍、執行協調、JobStore port |
+| `collection.py`、`workflow.py` | 收集、CI 身分核對、三個 LLM 操作 |
+| `models/task.py` | 不依賴 HTTP／DB 的 build 身分與任務資料 |
+| `repositories/sqlite.py` | SQLite 持久化、原子 enqueue／claim／retry |
+| `worker.py` | 背景 worker 與 volume 排他鎖 |
+| `bootstrap.py` | 由可信設定建立單次 build 的 artifact URL |
 | `server.py` | ASGI composition root，組合上述元件與生命週期 |
 | `Dockerfile`、`deploy/compose.yaml` | uv 鎖定依賴、非 root 容器與持久 volume |
 | `deploy/traefik/test-agent.yaml` | 共用 Traefik 的原生 file-provider 路由 |

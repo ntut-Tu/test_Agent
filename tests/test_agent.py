@@ -1,13 +1,11 @@
 import unittest
 
-from codebase_analysis.application.agent import CodebaseAnalysis, CodebaseAnalysisAgent
-from codebase_analysis.domain.models import (
-    ChangedFile,
-    ExistingTest,
-    LineFinding,
-    PullRequest,
-)
-from codebase_analysis.domain.validation import InvalidFindingsError
+from codebase_analysis.collection import CodebaseAnalysis
+from codebase_analysis.lib.rules.validation import InvalidFindingsError
+from codebase_analysis.models.analysis import LineFinding
+from codebase_analysis.models.pull_request import ChangedFile, PullRequest
+from codebase_analysis.models.source import ExistingTest
+from codebase_analysis.workflow import CodebaseAnalysisAgent
 from tests.fakes import StubCoverage, StubPrFetcher, StubTestRetriever
 
 
@@ -16,7 +14,7 @@ class AgentTests(unittest.TestCase):
         from types import SimpleNamespace
         from unittest.mock import Mock
 
-        from codebase_analysis.domain.jobs import BuildRequest
+        from codebase_analysis.models.task import BuildRequest
 
         build = BuildRequest('github', 'org/repo', 31, 'a' * 40, 'pdd/test', 9)
         for head, coverage_id, trace_id in [

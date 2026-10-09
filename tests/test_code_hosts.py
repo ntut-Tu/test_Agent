@@ -1,14 +1,12 @@
 import unittest
 
-from codebase_analysis.infrastructure.code_hosts.api import GitHubApi, GitLabApi
-from codebase_analysis.infrastructure.code_hosts.pr_fetch import (
-    GitHubPrFetcher,
-    GitLabMrFetcher,
-)
-from codebase_analysis.infrastructure.code_hosts.test_retriever import (
+from codebase_analysis.lib.clients.github import GitHubApi
+from codebase_analysis.lib.clients.gitlab import GitLabApi
+from codebase_analysis.tools.existing_tests import (
     GitHubTestRetriever,
     GitLabTestRetriever,
 )
+from codebase_analysis.tools.pull_request import GitHubPrFetcher, GitLabMrFetcher
 from tests.fakes import FakeHttp
 
 

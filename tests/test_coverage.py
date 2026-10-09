@@ -1,8 +1,8 @@
 import unittest
 
-from codebase_analysis.domain.coverage import added_lines, match_coverage
-from codebase_analysis.domain.models import ChangedFile
-from codebase_analysis.infrastructure.coverage.xml import parse_coverage
+from codebase_analysis.lib.parsers.coverage import parse_coverage
+from codebase_analysis.lib.rules.coverage import added_lines, match_coverage
+from codebase_analysis.models.pull_request import ChangedFile
 
 
 class CoverageTests(unittest.TestCase):

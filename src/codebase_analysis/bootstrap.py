@@ -1,27 +1,27 @@
-"""Composition root: connect settings and infrastructure to the application."""
+"""Compose clients, tools, analysis nodes and build-specific settings."""
+
+from urllib.parse import quote
 
 from langchain.chat_models import init_chat_model
 
-from codebase_analysis.application.agent import CodebaseAnalysis, CodebaseAnalysisAgent
-from codebase_analysis.infrastructure.code_hosts.api import GitHubApi, GitLabApi
-from codebase_analysis.infrastructure.code_hosts.pr_fetch import (
-    GitHubPrFetcher,
-    GitLabMrFetcher,
-)
-from codebase_analysis.infrastructure.code_hosts.test_retriever import (
+from codebase_analysis.collection import CodebaseAnalysis
+from codebase_analysis.lib.clients.github import GitHubApi
+from codebase_analysis.lib.clients.gitlab import GitLabApi
+from codebase_analysis.lib.clients.http import HttpClient
+from codebase_analysis.lib.clients.langchain import LangChainClient
+from codebase_analysis.lib.parsers.java import JavaSourceAnalyzer
+from codebase_analysis.models.task import BuildRequest
+from codebase_analysis.nodes.analysis import AnalysisNodes
+from codebase_analysis.settings import CollectionSettings, Settings
+from codebase_analysis.tools.coverage import JenkinsCoverage
+from codebase_analysis.tools.existing_tests import (
     GitHubTestRetriever,
     GitLabTestRetriever,
 )
-from codebase_analysis.infrastructure.coverage.jenkins import JenkinsCoverage
-from codebase_analysis.infrastructure.http import HttpClient
-from codebase_analysis.infrastructure.llm.langchain import LangChainAnalysisModel
-from codebase_analysis.infrastructure.settings import CollectionSettings, Settings
-from codebase_analysis.infrastructure.source.java import JavaSourceAnalyzer
-from codebase_analysis.infrastructure.source.repository import (
-    GitHubSourceReader,
-    GitLabSourceReader,
-)
-from codebase_analysis.infrastructure.trace.jenkins import JenkinsTrace
+from codebase_analysis.tools.pull_request import GitHubPrFetcher, GitLabMrFetcher
+from codebase_analysis.tools.source import GitHubSourceReader, GitLabSourceReader
+from codebase_analysis.tools.trace import JenkinsTrace
+from codebase_analysis.workflow import CodebaseAnalysisAgent
 
 
 def build_collector(settings: CollectionSettings) -> CodebaseAnalysis:
@@ -88,4 +88,22 @@ def build_agent(settings: Settings) -> CodebaseAnalysisAgent:
     chat_model = init_chat_model(
         settings.llm.model, model_provider=settings.llm.provider, **options,
     )
-    return CodebaseAnalysisAgent(collector, LangChainAnalysisModel(chat_model))
+    return CodebaseAnalysisAgent(collector, AnalysisNodes(LangChainClient(chat_model)))
+
+
+def settings_for_build(settings: Settings, build: BuildRequest) -> Settings:
+    """Derive trusted artifact paths without mutating shared deployment settings."""
+    if (build.provider, build.repository, build.job_name) != (
+        settings.code_host.provider, settings.code_host.repository, settings.jenkins.job_name,
+    ):
+        raise ValueError('Build is outside configured repository/job scope')
+    if not settings.jenkins.base_url:
+        raise ValueError('jenkins.base_url is required for automatic build analysis')
+    path = '/'.join('job/' + quote(part, safe='') for part in build.job_name.split('/'))
+    base = f'{settings.jenkins.base_url.rstrip("/")}/{path}/{build.build_number}/artifact/agent-analysis'
+    jenkins = settings.jenkins.model_copy(update={
+        'artifact_url': f'{base}/jacoco.xml',
+        'metadata_url': f'{base}/coverage-metadata.json',
+        'trace_url': f'{base}/java-test-trace.json',
+    })
+    return settings.model_copy(update={'jenkins': jenkins})

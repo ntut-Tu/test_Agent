@@ -3,14 +3,18 @@ import unittest
 from dataclasses import replace
 from types import SimpleNamespace
 
-from codebase_analysis.domain.context import TestContext
-from codebase_analysis.domain.models import LlmFindings
-from codebase_analysis.domain.trace import dynamic_contexts
-from codebase_analysis.domain.validation import InvalidFindingsError, validate_findings
-from codebase_analysis.infrastructure.errors import RemoteError
-from codebase_analysis.infrastructure.llm.langchain import LangChainAnalysisModel
-from codebase_analysis.infrastructure.source.java import JavaSourceAnalyzer
-from codebase_analysis.infrastructure.trace.jenkins import parse_trace
+from codebase_analysis.lib.clients.langchain import LangChainClient
+from codebase_analysis.lib.errors import RemoteError
+from codebase_analysis.lib.parsers.java import JavaSourceAnalyzer
+from codebase_analysis.lib.parsers.trace import parse_trace
+from codebase_analysis.lib.rules.context import dynamic_contexts
+from codebase_analysis.lib.rules.validation import (
+    InvalidFindingsError,
+    validate_findings,
+)
+from codebase_analysis.models.analysis import LlmFindings
+from codebase_analysis.models.source import TestContext
+from codebase_analysis.nodes.analysis import AnalysisNodes
 from tests.java_fixtures import (
     SOURCE,
     SOURCE_PATH,
@@ -36,7 +40,7 @@ class JavaContextTests(unittest.TestCase):
         trace = parse_trace(json.dumps(trace_payload()).encode())
         context = collector(SimpleNamespace(fetch=lambda: trace)).run(1)
         model = FakeChatModel([])
-        selected = LangChainAnalysisModel(model).select_existing_tests(context)
+        selected = AnalysisNodes(LangChainClient(model)).select_existing_tests(context)
         self.assertEqual(model.schemas, [])
         self.assertEqual(len(selected), 1)
         self.assertEqual(selected[0].evidence, "dynamic")
@@ -88,7 +92,7 @@ class JavaContextTests(unittest.TestCase):
             "test_id": "invented", "reason": "guess",
         }]}])
         with self.assertRaises(RemoteError):
-            LangChainAnalysisModel(model).select_existing_tests(context)
+            AnalysisNodes(LangChainClient(model)).select_existing_tests(context)
 
     def test_model_cannot_claim_or_drop_dynamic_evidence(self):
         context = collector().run(1)

@@ -13,67 +13,38 @@ This package analyzes Java/Spring/Maven PRs and merge requests. It reads remote 
 [目前專案架構](structure/README.md)。
 
 ```text
-structure/
-  README.md                current project architecture
-  coverage-analysis.md     coverage design and implementation report
-  existing-tests-analysis.md  test-context design and implementation report
-  controller-deployment.md HTTP API, persistent jobs, container and shared Traefik
-  contracts/               Jenkins coverage/trace schemas and trace example
-Dockerfile                 non-root uv-based runtime image
-deploy/                    Compose overlays and this project’s Traefik route
-values.example.yaml        versioned configuration template
-values.yaml                user configuration and secrets (ignored by Git)
-scripts/
-  deploy.sh / deploy.py    build and deploy the Agent container
-  register-traefik-route.sh / register_traefik_route.py  mount/reload Agent route
-  serve.sh                 start the HTTP service locally
-  setup.sh                 install locked dependencies and create missing values.yaml
-  test.sh                  run tests
-  smoke-test.sh            live remote checks without LLM calls
-  smoke_test.py            smoke-test argument parsing and output formatting
+AGENTS.md / BACKLOG.md      工作規則、PBI 與驗收紀錄
+structure/                 目前架構、功能報告、部署與 artifact 契約
+scripts/                   安裝、測試、smoke、服務與部署入口
+deploy/ / Dockerfile        本專案的容器及共用 Traefik 路由
+values.yaml                使用者設定與 secrets（不進 Git）
 src/codebase_analysis/
-  server.py                ASGI composition root and worker lifecycle
-  presentation/http/       HTTP controller and request schemas
-  bootstrap.py             composition root for configured concrete dependencies
-  domain/
-    jobs.py                immutable build identity and job data
-    models.py              normalized data types
-    context.py             Java methods, focal methods, and test contexts
-    trace.py               per-test evidence and revision/artifact verification
-    paths.py               Maven Java source-role conventions
-    coverage.py            coverage and changed-line matching
-    validation.py          validate model findings against collected evidence
-  application/
-    jobs.py                job scope, execution coordination and persistence port
-    agent.py               collection and three LLM operations, composed via interfaces
-    smoke.py               independent checks of the collection capabilities
-    ports.py               tool and model interfaces
-  infrastructure/
-    jobs/                  SQLite persistence, worker and fixed build URLs
-    settings.py            YAML loading, validation, and secret fields
-    http.py                HTTP transport
-    errors.py              remote integration errors
-    code_hosts/
-      api.py               shared GitHub / GitLab API access
-      pr_fetch.py          PR / MR retrieval
-      test_retriever.py    remote existing-test retrieval
-    coverage/
-      jenkins.py           Jenkins artifact retrieval
-      metadata.py          coverage provenance contract
-      xml.py               JaCoCo / Cobertura normalization
-    source/
-      java.py              Java AST declarations and declaring-file context
-      repository.py        source retrieval at the PR/MR commit
-    trace/
-      jenkins.py           versioned per-test Java trace artifact
-    llm/
-      langchain.py         structured model calls for the three green operations
-tests/                     behavior and dependency-boundary tests
+  server.py / controller.py ASGI 生命週期與 HTTP 入口
+  bootstrap.py             依賴組裝與固定 build URLs
+  settings.py              YAML 設定載入與驗證
+  interfaces.py            收集與模型分析的 Protocol
+  collection.py            確定性證據收集
+  workflow.py              固定分析順序
+  tasks.py / worker.py     任務協調與背景執行
+  smoke.py                 非 LLM 檢查流程
+  nodes/                   三個 LLM 分析操作與輸入整理
+  prompts/                 各操作的提示
+  tools/                   擷取工具的薄入口
+  lib/clients/             對外服務通訊
+  lib/parsers/             回應與檔案格式解析
+  lib/rules/               純規則、比對與驗證
+  models/                  程式內 dataclass 資料型別
+  schemas/                 HTTP、LLM 與 artifact 邊界契約
+  repositories/            任務儲存介面與 SQLite
+tests/                     行為、HTTP、儲存、基準與依賴邊界驗證
 ```
 
-The domain depends only on the standard library. The application depends on the domain and its own interfaces. Infrastructure implements those interfaces; callers compose the concrete dependencies. Coverage crosses the application boundary as `CoverageReport`, and every model implementation's findings pass through the same domain validation.
+維持單一 Python 套件，以元件類型分類。`tools` 組合內部 `lib`，
+`nodes` 組合提示、schema 與模型 client，`workflow` 決定順序。
+目前使用普通 Python 固定流程，尚未加入 LangGraph。
 
-Remote retrieval and parsing are deterministic infrastructure operations. Coverage intersections, method grouping and observed test associations are domain rules. LangChain provides PR summaries, coverage explanations and test-method recommendations where dynamic context is absent. The application coordinates these operations.
+[BACKLOG.md](BACKLOG.md) 保存 PBI 的價值、範圍、順序、驗收條件、狀態與證據；
+[AGENTS.md](AGENTS.md) 指示接續工作時讀取並更新。後續指定 PBI 編號即可，列入待辦不代表授權實作。
 
 ## 設定與腳本
 
@@ -102,7 +73,7 @@ Remote retrieval and parsing are deterministic infrastructure operations. Covera
 
 ```python
 from codebase_analysis.bootstrap import build_agent
-from codebase_analysis.infrastructure.settings import load_settings
+from codebase_analysis.settings import load_settings
 
 settings = load_settings("/path/to/project/values.yaml")
 agent = build_agent(settings)
@@ -166,8 +137,8 @@ Metadata 格式與 Jenkins 接入見 [coverage 報告](structure/coverage-analys
 可在 IDE 查看說明，或用 Python 內建的 `help()`／`pydoc` 查閱：
 
 ```bash
-uv run python -m pydoc codebase_analysis.application.agent
-uv run python -m pydoc codebase_analysis.infrastructure.settings
+uv run python -m pydoc codebase_analysis.workflow
+uv run python -m pydoc codebase_analysis.settings
 ```
 
 更新公開介面時，同步更新相應 docstring。
@@ -179,7 +150,7 @@ uv run python -m pydoc codebase_analysis.infrastructure.settings
 1. 有使用 `from __future__` 時放在最前面（module docstring 之後）。
 2. 依序排列標準庫、第三方套件、專案模組；各組之間空一行。
 3. 每組先放 `import ...`，再放 `from ... import ...`，由 Ruff 排序。
-4. 專案內統一使用絕對匯入，例如 `from codebase_analysis.domain.models import PullRequest`。
+4. 專案內統一使用絕對匯入，例如 `from codebase_analysis.models.pull_request import PullRequest`。
 5. 過長的匯入清單以括號分行；不使用 `import *`，移除未使用的匯入。
 
 Ruff 是 uv 的開發依賴，`./scripts/setup.sh` 會一併安裝。

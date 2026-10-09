@@ -142,16 +142,16 @@ LLM 可分析候選的語意；收集到的未覆蓋事實仍保留在 `Analysis
 
 | 責任 | 程式位置（相對於 `src/codebase_analysis/`） |
 | --- | --- |
-| Jenkins 下載與 XML 雜湊 | `infrastructure/coverage/jenkins.py` |
-| Metadata JSON 契約解析 | `infrastructure/coverage/metadata.py` |
-| XML 正規化 | `infrastructure/coverage/xml.py` |
-| Diff 與 coverage 交集 | `domain/coverage.py` |
-| Maven 來源分類 | `domain/paths.py` |
-| Source commit 的原始碼讀取 | `infrastructure/source/repository.py` |
-| Java AST | `infrastructure/source/java.py` |
-| 未覆蓋行與方法分組 | `domain/context.py` |
-| 收集與版本核對編排 | `application/agent.py` |
-| LLM 分析 | `infrastructure/llm/langchain.py` |
+| Jenkins 下載與 XML 雜湊 | `tools/coverage.py` |
+| Metadata JSON 契約解析 | `lib/parsers/metadata.py`、`schemas/metadata.py` |
+| XML 正規化 | `lib/parsers/coverage.py` |
+| Diff 與 coverage 交集 | `lib/rules/coverage.py`、`lib/rules/provenance.py` |
+| Maven 來源分類 | `lib/rules/paths.py` |
+| Source commit 的原始碼讀取 | `tools/source.py` |
+| Java AST | `lib/parsers/java.py` |
+| 未覆蓋行與方法分組 | `lib/rules/context.py` |
+| 收集與版本核對編排 | `collection.py`、`workflow.py` |
+| LLM 分析 | `nodes/coverage.py` |
 
 `AnalysisResult` 主要欄位：
 

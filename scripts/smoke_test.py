@@ -4,12 +4,9 @@ import argparse
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 
-from codebase_analysis.application.smoke import CollectionSmokeTest
 from codebase_analysis.bootstrap import build_collector
-from codebase_analysis.infrastructure.settings import (
-    SettingsError,
-    load_collection_settings,
-)
+from codebase_analysis.settings import SettingsError, load_collection_settings
+from codebase_analysis.smoke import CollectionSmokeTest
 
 
 def _positive_number(value: str) -> int:

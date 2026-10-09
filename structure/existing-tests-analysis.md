@@ -153,14 +153,14 @@ archiveArtifacts artifacts: 'agent-analysis/jacoco.xml,agent-analysis/java-test-
 
 | 責任 | 程式位置（相對於 `src/codebase_analysis/`） |
 | --- | --- |
-| Java AST、annotation 與方法範圍 | `infrastructure/source/java.py` |
-| 候選檔案與遠端內容 | `infrastructure/code_hosts/test_retriever.py` |
-| Trace 下載與嚴格 schema 驗證 | `infrastructure/trace/jenkins.py` |
-| Trace／method／test context 資料型別 | `domain/trace.py`、`domain/context.py` |
-| 依測試身份建立動態對應 | `domain/trace.py` → `dynamic_contexts()` |
-| 收集、優先擷取 caller、來源版本核對 | `application/agent.py` |
-| LLM fallback | `infrastructure/llm/langchain.py` |
-| 證據與模型引用驗證 | `domain/validation.py` |
+| Java AST、annotation 與方法範圍 | `lib/parsers/java.py` |
+| 候選檔案與遠端內容 | `tools/existing_tests.py`、`lib/rules/selection.py` |
+| Trace 下載與嚴格 schema 驗證 | `tools/trace.py`、`lib/parsers/trace.py`、`schemas/trace.py` |
+| Trace／method／test context 資料型別 | `models/trace.py`、`models/source.py` |
+| 依測試身份建立動態對應 | `lib/rules/context.py` → `dynamic_contexts()` |
+| 收集、優先擷取 caller、來源版本核對 | `collection.py`、`workflow.py` |
+| LLM fallback | `nodes/existing_tests.py` |
+| 證據與模型引用驗證 | `lib/rules/validation.py` |
 
 ## 7. 驗證與限制
 

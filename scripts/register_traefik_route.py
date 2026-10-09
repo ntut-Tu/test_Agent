@@ -10,7 +10,7 @@ from urllib.parse import quote
 
 import yaml
 
-from codebase_analysis.infrastructure.settings import load_settings
+from codebase_analysis.settings import load_settings
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = '/etc/traefik/dynamic/test-agent'

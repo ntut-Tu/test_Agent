@@ -8,17 +8,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from codebase_analysis.application.jobs import AnalysisJobs
-from codebase_analysis.bootstrap import build_agent
-from codebase_analysis.infrastructure.jobs.analysis import settings_for_build
-from codebase_analysis.infrastructure.jobs.sqlite import SqliteJobStore
-from codebase_analysis.infrastructure.jobs.worker import AnalysisWorker
-from codebase_analysis.infrastructure.settings import (
-    Settings,
-    SettingsError,
-    load_settings,
-)
-from codebase_analysis.presentation.http.routes import analysis_router
+from codebase_analysis.bootstrap import build_agent, settings_for_build
+from codebase_analysis.controller import analysis_router
+from codebase_analysis.repositories.sqlite import SqliteJobStore
+from codebase_analysis.settings import Settings, SettingsError, load_settings
+from codebase_analysis.tasks import AnalysisJobs
+from codebase_analysis.worker import AnalysisWorker
 
 
 def create_app(settings: Settings | None = None, *, analyze=None) -> FastAPI:

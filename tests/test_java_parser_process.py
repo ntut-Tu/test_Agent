@@ -9,7 +9,7 @@ class JavaParserProcessTests(unittest.TestCase):
     def test_large_java_files_keep_line_numbers_and_exit_cleanly(self):
         # A child process lets the test report native crashes, including at exit.
         script = '''
-from codebase_analysis.infrastructure.source.java import JavaSourceAnalyzer
+from codebase_analysis.lib.parsers.java import JavaSourceAnalyzer
 analyzer = JavaSourceAnalyzer()
 source = "package demo;\\nclass Large {\\n" + "".join(
     f"    int method{i}() {{\\n        return {i}; // 中文\\n    }}\\n"

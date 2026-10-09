@@ -7,7 +7,7 @@ from unittest.mock import patch
 import yaml
 
 from codebase_analysis.bootstrap import build_agent
-from codebase_analysis.infrastructure.settings import SettingsError, load_settings
+from codebase_analysis.settings import SettingsError, load_settings
 
 
 class SettingsTests(unittest.TestCase):
@@ -44,7 +44,7 @@ class SettingsTests(unittest.TestCase):
                     "test-model", model_provider="test-provider", api_key="llm-secret",
                     base_url="https://model.example",
                 )
-                self.assertIs(agent.model.chat_model, init_model.return_value)
+                self.assertIs(agent.model.client.chat_model, init_model.return_value)
                 self.assertEqual(agent.collector.max_test_files, 7)
                 api = agent.collector.pull_requests.api
                 self.assertIs(agent.collector.tests.api, api)

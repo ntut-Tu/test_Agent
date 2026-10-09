@@ -9,7 +9,7 @@ from urllib.error import HTTPError
 
 import yaml
 
-from codebase_analysis.infrastructure.errors import RemoteError
+from codebase_analysis.lib.errors import RemoteError
 from scripts.smoke_test import main
 from tests.fakes import FakeHttp
 

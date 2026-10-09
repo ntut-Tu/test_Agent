@@ -1,6 +1,7 @@
 import unittest
 
-from codebase_analysis.infrastructure.llm.langchain import LangChainAnalysisModel
+from codebase_analysis.lib.clients.langchain import LangChainClient
+from codebase_analysis.nodes.analysis import AnalysisNodes
 from tests.java_fixtures import SOURCE_PATH, collector
 
 
@@ -35,7 +36,7 @@ class LangChainModelTests(unittest.TestCase):
                 "test_id": self.context.test_methods[0].identity, "reason": "reuse Spring setup",
             }]},
         ])
-        model = LangChainAnalysisModel(fake)
+        model = AnalysisNodes(LangChainClient(fake))
         self.assertEqual(model.summarize_pr(self.context), "PR summary")
         self.assertEqual(model.identify_uncovered_lines(self.context)[0].number, 5)
         selected = model.select_existing_tests(self.context)

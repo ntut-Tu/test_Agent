@@ -1,1 +1,0 @@
-"""Jenkins trace artifact adapters."""

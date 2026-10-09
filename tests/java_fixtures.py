@@ -2,15 +2,12 @@ from dataclasses import replace
 from hashlib import sha256
 from types import SimpleNamespace
 
-from codebase_analysis.application.agent import CodebaseAnalysis
-from codebase_analysis.domain.models import (
-    ChangedFile,
-    CoverageProvenance,
-    ExistingTest,
-    PullRequest,
-)
-from codebase_analysis.infrastructure.coverage.xml import parse_coverage
-from codebase_analysis.infrastructure.source.java import JavaSourceAnalyzer
+from codebase_analysis.collection import CodebaseAnalysis
+from codebase_analysis.lib.parsers.coverage import parse_coverage
+from codebase_analysis.lib.parsers.java import JavaSourceAnalyzer
+from codebase_analysis.models.coverage import CoverageProvenance
+from codebase_analysis.models.pull_request import ChangedFile, PullRequest
+from codebase_analysis.models.source import ExistingTest
 from tests.fakes import StubPrFetcher, StubTestRetriever
 
 SOURCE_PATH = "src/main/java/demo/ShippingService.java"

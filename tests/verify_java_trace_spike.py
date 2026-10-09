@@ -5,11 +5,11 @@ import sys
 from hashlib import sha256
 from pathlib import Path
 
-from codebase_analysis.domain.context import FocalMethod
-from codebase_analysis.domain.trace import dynamic_contexts
-from codebase_analysis.infrastructure.coverage.xml import parse_coverage
-from codebase_analysis.infrastructure.source.java import JavaSourceAnalyzer
-from codebase_analysis.infrastructure.trace.jenkins import parse_trace
+from codebase_analysis.lib.parsers.coverage import parse_coverage
+from codebase_analysis.lib.parsers.java import JavaSourceAnalyzer
+from codebase_analysis.lib.parsers.trace import parse_trace
+from codebase_analysis.lib.rules.context import dynamic_contexts
+from codebase_analysis.models.source import FocalMethod
 
 
 def verify(fixture: Path) -> None:

@@ -2,9 +2,9 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import quote
 
-from codebase_analysis.application.smoke import CollectionSmokeTest
 from codebase_analysis.bootstrap import build_collector
-from codebase_analysis.infrastructure.settings import CollectionSettings
+from codebase_analysis.settings import CollectionSettings
+from codebase_analysis.smoke import CollectionSmokeTest
 from tests.fakes import FakeHttp
 from tests.java_fixtures import (
     REVISION,

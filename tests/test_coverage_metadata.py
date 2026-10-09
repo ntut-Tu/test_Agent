@@ -4,13 +4,13 @@ from dataclasses import replace
 from hashlib import sha256
 from types import SimpleNamespace
 
-from codebase_analysis.domain.coverage import (
+from codebase_analysis.lib.errors import RemoteError
+from codebase_analysis.lib.parsers.metadata import parse_metadata
+from codebase_analysis.lib.rules.provenance import (
     CoverageBindingError,
     verify_coverage_binding,
 )
-from codebase_analysis.infrastructure.coverage.jenkins import JenkinsCoverage
-from codebase_analysis.infrastructure.coverage.metadata import parse_metadata
-from codebase_analysis.infrastructure.errors import RemoteError
+from codebase_analysis.tools.coverage import JenkinsCoverage
 from tests.fakes import FakeHttp
 from tests.java_fixtures import REVISION, XML, collector
 
