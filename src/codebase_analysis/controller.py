@@ -13,7 +13,8 @@ from codebase_analysis.tasks import AnalysisJobs
 def job_status(job: AnalysisJob) -> dict:
     return {'id': job.id, 'status': job.status, 'created_at': job.created_at,
             'updated_at': job.updated_at, 'error': job.error,
-            'build_id': job.request.build_id, 'head_sha': job.request.head_sha}
+            'build_id': job.request.build_id, 'head_sha': job.request.head_sha,
+            'generation': job.generation, 'execution_mode': job.execution_mode, 'thread_id': job.thread_id}
 
 
 def analysis_router(jobs: AnalysisJobs, token: str) -> APIRouter:
@@ -58,6 +59,18 @@ def analysis_router(jobs: AnalysisJobs, token: str) -> APIRouter:
     def retry(identity: str):
         try:
             job = jobs.store.retry(identity)
+        except OverflowError:
+            raise HTTPException(503, 'Queue is full', headers={'Retry-After': '10'}) from None
+        if job is None:
+            raise HTTPException(404, 'Analysis not found')
+        return job_status(job)
+
+    @router.post('/{identity}/restart', status_code=202)
+    def restart(identity: str):
+        try:
+            job = jobs.store.restart(identity)
+        except ValueError:
+            raise HTTPException(409, 'Cannot restart an active analysis') from None
         except OverflowError:
             raise HTTPException(503, 'Queue is full', headers={'Retry-After': '10'}) from None
         if job is None:

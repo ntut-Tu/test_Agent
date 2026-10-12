@@ -9,7 +9,7 @@ PR poll → test-all-server → head tests → coverage / trace 歸檔
                                           ↓
                              FastAPI controller → SQLite queued job
                                           ↓
-                             worker → 收集與版本核對 → 三個 LLM 分析
+                             worker → LangGraph 收集／分析節點 + SQLite checkpoints
                                           ↓
                                   succeeded / failed + result
 ```
@@ -28,7 +28,8 @@ Controller 只接受 `values.yaml` 配置的 repository／job，從 `jenkins.bas
 | `tasks.py`、`repositories/base.py` | 任務提交範圍、執行協調、JobStore port |
 | `collection.py`、`workflow.py` | 收集、CI 身分核對、三個 LLM 操作 |
 | `models/task.py` | 不依賴 HTTP／DB 的 build 身分與任務資料 |
-| `repositories/sqlite.py` | SQLite 持久化、原子 enqueue／claim／retry |
+| `repositories/sqlite.py` | 任務持久化、原子 enqueue／claim／retry／restart |
+| `repositories/checkpoints.py` | LangGraph SQLite checkpoint 連線生命週期 |
 | `worker.py` | 背景 worker 與 volume 排他鎖 |
 | `bootstrap.py` | 由可信設定建立單次 build 的 artifact URL |
 | `server.py` | ASGI composition root，組合上述元件與生命週期 |
@@ -49,7 +50,8 @@ Controller 只接受 `values.yaml` 配置的 repository／job，從 `jenkins.bas
 | POST | `/test-agent/analyses` | 202 與任務 ID；已完成的重送回 200 |
 | GET | `/test-agent/analyses/{id}` | 狀態、版本、時間及去除敏感資訊的錯誤類型 |
 | GET | `/test-agent/analyses/{id}/result` | 成功結果；尚未成功回 409 |
-| POST | `/test-agent/analyses/{id}/retry` | 只將 failed 任務重新排隊，active／succeeded 保持原狀 |
+| POST | `/test-agent/analyses/{id}/retry` | failed 任務以相同 generation、mode=resume 排隊，active／succeeded 不變 |
+| POST | `/test-agent/analyses/{id}/restart` | terminal 任務以新 generation、mode=new 排隊；active 回 409 |
 | GET | `/test-agent/health/live` | HTTP server 存活 |
 | GET | `/test-agent/health/ready` | worker 已啟動 |
 
@@ -66,6 +68,7 @@ Controller 只接受 `values.yaml` 配置的 repository／job，從 `jenkins.bas
 }
 ```
 
+回應增加 `generation`、`execution_mode`、`thread_id`；`execution_mode` 表示這次排隊要求 new 或 resume。
 回應中的 `id` 由完整請求的身分計算。相同 build 請求重送不會再呼叫 LLM。
 `GET /result` 的 `context` 包含收集的版本與證據，`findings` 是三個綠色步驟的分析結果。
 不存在任務回 404，認證失敗回 401，格式／來源範圍不符回 422，佇列額滿回 503。
@@ -132,8 +135,11 @@ HTTP 提交失敗會將提交 stage 標為失敗、build 至少為 UNSTABLE，�
 
 - SQLite 與結果位於 named volume；重建 container 保留任務。刪除 volume 才會刪除歷史。
 - 目前為單一 instance、單一 worker；volume 排他鎖拒絕另一個同時處理者。
-- queued 任務在重啟後繼續；被中斷的 running 任務標為 `failed / Interrupted`，可明確 retry。
-  外部模型呼叫在斷線瞬間可能已完成，retry 可能再次產生模型費用，不宣稱 exactly-once。
+- queued 任務在重啟後繼續；被中斷的 running 任務以 mode=resume 自動重新排隊；一般 failed 任務需明確 retry。
+- LangGraph 使用 `/data/checkpoints.sqlite3` 同步保存各節點進度；已保存的模型節點不必重跑。
+  外部模型接受請求、但尚未保存輸出時中斷，仍可能重複呼叫。
+- 流程／設定不相容時 resume 失敗；明確 restart 會增加 generation 並重新收集。
+  完整定義、資料遷移與限制見 [LangGraph 執行契約](langgraph-execution.md)。
 - 此版本不含多副本分散式 queue；不含 Step 2 測試生成／sandbox 執行。
 - Trace 的 `complete=false` 仍代表部分追蹤；已有觀察可作證據，不代表所有呼叫都已記錄。
 
@@ -154,7 +160,9 @@ deployment:
 
 跨引擎時才使用 `published_port`，並另外配置代理可達的 upstream；本機目前全在同一引擎，不需要公開 Agent port。
 
-## 本機部署驗證：2026-10-09（台灣時間）
+## 歷史部署驗證：2026-10-09（LangGraph 導入前）
+
+以下是先前版本的驗證紀錄。PBI-002 的新版程式尚未部署到此容器。
 
 已部署於 `desktop-linux`，Agent container 為 `test-agent`；共用入口為
 `http://127.0.0.1:18487/test-agent`。Agent 沒有直接發布 host port。

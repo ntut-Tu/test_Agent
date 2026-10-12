@@ -3,7 +3,7 @@
 import json
 from dataclasses import asdict, dataclass
 from hashlib import sha256
-from typing import Any
+from typing import Any, Literal
 
 
 @dataclass(frozen=True)
@@ -38,3 +38,11 @@ class AnalysisJob:
     updated_at: str
     result: dict[str, Any] | None = None
     error: str | None = None
+
+    generation: int = 0
+    execution_mode: Literal['new', 'resume'] = 'new'
+
+    @property
+    def thread_id(self) -> str:
+        """Isolate persisted graph state for one execution of this job."""
+        return f'{self.id}:{self.generation}'

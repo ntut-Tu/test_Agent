@@ -12,3 +12,12 @@
 - 接續專案工作時讀取 BACKLOG.md，依使用者指定的 PBI／範圍執行；列入 backlog 不代表授權。
 - 更新該 PBI 的進度、驗收證據及未決事項；符合驗收條件後才標示完成。
 - 保持 PBI 的交付價值與實作子任務分開，不擅自擴大範圍。
+
+## PBI terminology and traceability
+
+- Maintain PBI descriptions in English, using explicitly defined terms.
+- A PBI ID is permanent and is distinct from backlog order, a conversation list number, and a workflow step.
+- Record any split/merge or mapping from an earlier task list; never silently renumber or reinterpret authorization.
+- Separate implemented behavior, acceptance requirements, proposals, open decisions, and verification evidence.
+- Use “user story” only for that description format; do not imply every PBI is a user story.
+- Describe resume/restart/checkpoint behavior precisely, including durability limits. Do not mark an item Done without evidence for its acceptance criteria.

@@ -1,6 +1,6 @@
 # Codebase analysis
 
-This package analyzes Java/Spring/Maven PRs and merge requests. It reads remote source, Jenkins coverage, existing tests, and optional per-test invocation traces. Java AST analysis maps uncovered patch lines to methods. Observed test callers are retained as evidence; LangChain explains coverage gaps and recommends test contexts for methods without observed callers. Jenkins submits completed builds to the FastAPI controller through shared Traefik. A persistent worker calls `CodebaseAnalysisAgent`; shell scripts provide deployment, setup, local tests, and live collection checks.
+This package analyzes Java/Spring/Maven PRs and merge requests. It reads remote source, Jenkins coverage, existing tests, and optional per-test invocation traces. Java AST analysis maps uncovered patch lines to methods. Observed test callers are retained as evidence; LangChain explains coverage gaps and recommends test contexts for methods without observed callers. Jenkins submits completed builds to the FastAPI controller through shared Traefik. A persistent worker runs a checkpointed LangGraph through `CodebaseAnalysisAgent`; shell scripts provide deployment, setup, local tests, and live collection checks.
 
 功能設計與實作報告：
 
@@ -24,7 +24,7 @@ src/codebase_analysis/
   settings.py              YAML 設定載入與驗證
   interfaces.py            收集與模型分析的 Protocol
   collection.py            確定性證據收集
-  workflow.py              固定分析順序
+  workflow.py              LangGraph 流程、checkpoint 相容性與恢復
   tasks.py / worker.py     任務協調與背景執行
   smoke.py                 非 LLM 檢查流程
   nodes/                   三個 LLM 分析操作與輸入整理
@@ -41,7 +41,8 @@ tests/                     行為、HTTP、儲存、基準與依賴邊界驗證
 
 維持單一 Python 套件，以元件類型分類。`tools` 組合內部 `lib`，
 `nodes` 組合提示、schema 與模型 client，`workflow` 決定順序。
-目前使用普通 Python 固定流程，尚未加入 LangGraph。
+目前使用 LangGraph 固定流程；HTTP service 將 checkpoint 存在既有資料 volume。
+`retry` 恢復同一 generation，`restart` 建立新 generation；詳見 [執行與恢復契約](structure/langgraph-execution.md)。
 
 [BACKLOG.md](BACKLOG.md) 保存 PBI 的價值、範圍、順序、驗收條件、狀態與證據；
 [AGENTS.md](AGENTS.md) 指示接續工作時讀取並更新。後續指定 PBI 編號即可，列入待辦不代表授權實作。
@@ -185,7 +186,9 @@ PR #31／Jenkins build #7 已產生真實 trace，Agent 容器已完成下載、
 
 Jenkins 透過共用 Traefik 的 `/test-agent/analyses` 提交 build 身分。
 Controller 回傳任務 ID；worker 自動下載該 build 的 coverage／trace、核對版本並執行三個 LLM 分析。
-任務以 SQLite 保存於 container volume，相同請求重送沿用既有結果。
+任務與 LangGraph checkpoint 以 SQLite 保存於 container volume，相同請求重送沿用既有任務。
+被程序中斷的 running 任務在 worker 啟動時恢復；一般失敗需明確 retry。
+本機程式的 PBI-002 改動尚未部署到既有 Agent 容器。
 
 部署程式、Dockerfile 與 Traefik 路由均放在本專案。
 設定、API、Jenkins 接線、部署方式與限制見 [controller 與部署說明](structure/controller-deployment.md)。

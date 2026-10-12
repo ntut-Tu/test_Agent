@@ -10,10 +10,11 @@ from codebase_analysis.repositories.base import JobStore
 
 logger = logging.getLogger(__name__)
 
+
 class AnalysisJobs:
     """Enforce configured scope and coordinate one durable unit of analysis."""
 
-    def __init__(self, store: JobStore, analyze: Callable[[BuildRequest], AgentResult],
+    def __init__(self, store: JobStore, analyze: Callable[[AnalysisJob], AgentResult],
                  *, provider: str, repository: str, job_name: str) -> None:
         self.store = store
         self.analyze = analyze
@@ -31,7 +32,7 @@ class AnalysisJobs:
         if job is None:
             return False
         try:
-            result = asdict(self.analyze(job.request))
+            result = asdict(self.analyze(job))
         except Exception as exc:
             code = type(exc).__name__
             logger.error("Analysis %s failed (%s)", job.id, code)

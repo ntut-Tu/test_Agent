@@ -1,83 +1,157 @@
 # Product Backlog
 
-本檔保存產品待辦、驗收條件與交付證據，供跨對話接續。PBI 描述價值與範圍，實作工作列在各項下。
-排序由上到下；列入 backlog 不代表已授權實作。2026-10-09 本輪僅授權原待辦第 1、2 項，對應 PBI-001。
-狀態：待釐清／待辦／進行中／完成。完成須有驗收證據，不能只以程式寫完判定。
+## Definitions and recording rules
 
-## PBI-001 — 可辨認責任並安全修改的分析程式結構
+A **Product Backlog Item (PBI)** describes an improvement to the product. It may be a
+feature, defect correction, or technical improvement. A **user story** is one possible
+description format; it is not a synonym for every PBI. The Scrum Guide describes the
+Product Backlog as an ordered, evolving list and refinement as adding detail. It does
+not prescribe the template below. [Source: Scrum Guide](https://scrumguides.org/scrum-guide.html#product-backlog)
 
-- **排序**：1；**狀態**：完成；**授權**：本輪。
-- **價值**：維護者能由元件類型定位程式，修改單一分析時可辨認提示、資料、工具與流程邊界，降低誤改行為的風險。
-- **範圍**：單一 Python 專案內按類型分類；薄工具入口與可匯入的內部 lib；拆開流程、三個分析操作、提示、schema 與模型 client。
-- **限制**：維持既有分析順序、提示內容、schema、HTTP／設定／資料格式、版本核對與錯誤行為；本輪不導入 LangGraph、不優化 prompt、不部署新容器、不呼叫真實 LLM。
-- **驗收條件**：
-  1. 依 nodes、tools、prompts、models、schemas、clients、parsers、rules 等類型可找到對應責任；沒有 feature／step 根目錄。
-  2. Tools 不包含底層 HTTP 分頁與解析演算法；lib 不反向依賴工具、節點或 controller。
-  3. 三個 LLM 操作分開，提示與 provider 呼叫分開，採組合，沒有為轉呼叫而增加 service 層。
-  4. 重整前後相同案例的模型訊息、JSON schema、回傳結果及 smoke 行為一致；既有測試通過。
-  5. Controller、儲存、模型與純規則的 import 邊界有檢查，所有操作腳本及文件使用新路徑。
-  6. 保存真實 PR #31／build #7 的既有結果與無遠端呼叫的比較基準；敏感原始資料不進 Git。
-- **實作任務**：
-  - [x] 保存原始碼、既有真實結果、合成案例的輸入／模型訊息／schema／輸出及測試基準。
-  - [x] 按責任拆分並更新引用。
-  - [x] 驗證行為一致與依賴邊界。
-  - [x] 更新架構、操作與遷移文件，記錄交付證據。
-- **基準**：`.state/baselines/structure-refactor/`（ignored），原有 50 tests 通過。
-- **交付證據**：2026-10-09 完成；51 項本機測試通過，合成案例的 context／模型訊息／schema／結果逐字一致；依賴邊界、Ruff、wheel 建置及 64 個模組匯入通過。詳見 [遷移與驗證](structure/structure-refactor.md)。未部署新版 Agent 或呼叫真實 LLM。後續已補跑 PR #31 實際遠端 smoke：exit code 0，各項 PASS，trace_fetch 因 complete=False 為 WARN；執行前啟動已停止的既有 Jenkins controller。
+This repository uses the following definitions:
 
-## PBI-002 — 分析中斷後可沿用已完成結果
+- **ID**: permanent reference, such as `PBI-002`. It does not encode priority or a workflow step.
+- **Order**: current backlog ordering, maintained separately from the ID.
+- **Outcome**: observable value expected from the change.
+- **Scope**: behavior included in the item. **Exclusions** identify discussed work outside it.
+- **Acceptance criteria (AC)**: item-specific, verifiable conditions; future-tense requirements do not describe delivered functionality.
+- **Implementation tasks**: engineering work needed to meet the AC; completing tasks alone does not establish acceptance.
+- **Evidence**: named tests, artifacts, or recorded observations, with their verification limits.
+- **Status**: `Needs refinement`, `Ready`, `In progress`, or `Done`.
+  `Done` requires all AC and the repository completion criteria below to be met.
+- **Authorization**: the user's permission to execute a specific scope, separate from status and order.
 
-- **排序**：2；**狀態**：待辦；**授權**：尚未授權。
-- **價值**：後段失敗不必重做全部模型分析，降低等待與重複費用。
-- **範圍**：LangGraph state／nodes／edges、持久化 checkpoint、任務 API 的恢復語意。
-- **驗收條件**：容器重啟後可恢復；完成節點結果可沿用；新分析與恢復可區分；保留 build 去重與版本核對；不宣稱外部模型 exactly-once。
-- **依賴**：PBI-001。需明確定義流程版本變更時的恢復規則。
+Repository completion criteria: relevant automated checks pass; behavior and interface
+changes are documented; unresolved limitations are recorded; secrets are excluded;
+acceptance evidence is linked. Deployment is required only when included in the item's
+scope. These are repository conventions, not a claim of a complete organizational Scrum process.
 
-## PBI-003 — 可控的模型請求與重試
+PBI text is maintained in English. Keep implemented behavior, requirements, proposals,
+and open decisions explicitly separate. Never silently replace IDs or map an ordinal
+such as “item 2” to a different list. Record any split, merge, or scope change.
 
-- **排序**：3；**狀態**：待辦；**授權**：尚未授權。
-- **價值**：併發分析時控制請求頻率，避免重試相乘與無限制等待。
-- **範圍**：共用 rate limiter、逾時、有限重試與用量紀錄；由 values.yaml 設定。
-- **驗收條件**：同程序節點共用 limiter；不可重試錯誤直接回報；重試有上限；記錄模型、提示版本、耗時及可取得的 token 用量；文件區分請求限流與 token／費用預算。
-- **依賴**：PBI-001；與 PBI-002 重試責任一致。
+## Numbering history
 
-## PBI-004 — 可追查單次分析的模型輸入與執行結果
+The earlier conversation's task list and these PBI IDs are different lists:
 
-- **排序**：4；**狀態**：待釐清；**授權**：尚未授權。
-- **價值**：失敗或回答品質不足時可定位到節點及實際輸入。
-- **待決定**：LangSmith 或 Langfuse、部署方式、輸入輸出記錄範圍。
-- **驗收條件**：PR／build／task 可關聯到節點與模型呼叫；有耗時與失敗資訊；不記錄憑證；停用 tracing 時分析可正常運作。
+| Earlier task | Stable PBI ID | Mapping |
+| --- | --- | --- |
+| 1: Preserve an analysis baseline | PBI-001 | Implementation task within the architecture item |
+| 2: Refactor the project structure | PBI-001 | Main delivery of the architecture item |
+| LangGraph workflow and persistence | PBI-002 | Separate follow-up item |
 
-## PBI-005 — 可用於後續測試生成的 Uncovered 分析
+The initial consolidation was not made clear before execution. This table records that
+mapping without renumbering existing items or reinterpreting the earlier authorization.
 
-- **排序**：5；**狀態**：待辦；**授權**：尚未授權。
-- **價值**：使用者取得缺口行為、觸發條件與預期結果，而非只有逐行重述。
-- **範圍**：PR Summary、diff、方法上下文；按方法／行為輸出；區分證據與推論。
-- **驗收條件**：方法與行號存在於輸入；分析包含觸發條件與預期結果；無證據時不捏造未覆蓋原因；保留確定性 coverage 結果；固定案例可與舊版比較。
-- **依賴**：PBI-001；需在實作前定義輸出契約與舊結果相容方式。
+## PBI-001 — Make analysis components identifiable and independently maintainable
 
-## PBI-006 — 可比較提示與模型版本的品質評估
+- **Order**: 1
+- **Status**: Done
+- **Authorization**: user instruction to complete the earlier task-list items 1 and 2.
+- **Outcome**: maintainers can locate responsibilities by component type and modify an analysis operation without mixing transport, parsing, prompts, and orchestration.
+- **Scope**: one Python project; type-based directories; thin tools importing internal libraries; separate collection, workflow, model operations, prompts, schemas, and clients.
+- **Exclusions**: LangGraph adoption, prompt improvements, deployment of a new Agent image, and paid model validation.
+- **Acceptance criteria**:
+  - AC1: Components are organized by type, with no feature/step root directories.
+  - AC2: Tools delegate transport and parsing; libraries do not import tools, nodes, or the controller.
+  - AC3: The three model operations, prompts, and provider invocation are separate and composed.
+  - AC4: Existing tests pass; the synthetic baseline preserves evidence, model messages, JSON schemas, and serialized outputs.
+  - AC5: Import boundaries are checked; scripts and architecture documentation reference the implemented paths.
+  - AC6: The earlier PR #31/build #7 result and the original baseline are preserved outside Git.
+- **Completed tasks**: preserve baseline; separate responsibilities; migrate imports; verify behavior; document architecture and migration.
+- **Evidence**: commit `95de553`; 51 local tests; baseline equality; wheel build/import verification; PR #31 live smoke exit 0, with `trace_fetch` warning for producer-declared `complete=False`. [Detailed evidence](structure/structure-refactor.md).
+- **Verification limits**: no new live model call or Agent deployment was performed for this item.
 
-- **排序**：6；**狀態**：待辦；**授權**：尚未授權。
-- **價值**：用固定案例與標準判斷改動是否改善品質。
-- **驗收條件**：案例可重放；程式檢查引用與格式；人工評估語意品質；記錄模型／提示版本、耗時及用量；區分無模型測試與付費實測。
-- **依賴**：PBI-005 的驗收標準；觀測平台可選，不作為本機案例保存的前置條件。
+## PBI-002 — Execute the analysis with LangGraph and resume persisted progress
 
-## PBI-007 — 新版分析服務可部署並完成整合驗證
+- **Order**: 2
+- **Status**: Done
+- **Authorization**: user explicitly requested implementation after confirming that PBI-002 was not implemented (2026-10-09).
+- **Outcome**: an operator can continue a failed or interrupted analysis without repeating model nodes whose outputs were durably saved.
+- **Scope**: explicit LangGraph state/nodes/edges; SQLite checkpoints on the existing data volume; queue recovery; distinct resume and fresh-execution operations; compatibility checks.
+- **Exclusions**: prompt/output-quality changes, parallel model nodes, automatic retry loops for analysis errors, rate limiting, tracing platforms, multiple workers, live model calls, and deployment into the existing Agent service.
+- **Operational definitions**:
+  - **Job**: the record deduplicated by the existing immutable build identity.
+  - **Generation**: a monotonically increasing identifier for a fresh analysis run within a job. Resuming that run does not change its generation.
+  - **Thread**: the LangGraph checkpoint identity for one job generation.
+  - **Checkpoint**: durable graph state at a super-step boundary; it is not the commit-message “checkpoint” label.
+  - **Resume**: continue the same generation from its saved graph state. If execution never saved an initial checkpoint, start that generation from collection.
+  - **Restart**: create a new generation and run from collection without reusing the previous generation's outputs.
+- **Acceptance criteria**:
+  - AC1: The normal analysis runs through explicit `collect → summarize_pr → analyze_coverage → select_tests → validate` graph nodes and returns the existing `AgentResult` contract. Existing prompt/schema baselines remain unchanged.
+  - AC2: Persistent execution uses synchronous checkpoint writes on the service data volume. Closing and reopening the process/storage retains completed node outputs.
+  - AC3: After failure in a later node, explicit retry resumes the same generation without repeating durably saved model nodes. A failed/in-flight node may run again. Provider requests are not guaranteed exactly-once.
+  - AC4: On worker startup, interrupted `running` jobs are requeued for resume; ordinary `failed` jobs require an explicit retry. Existing queue deduplication and single-worker locking remain effective.
+  - AC5: HTTP retry and restart have distinct documented behavior. Status includes the generation and requested execution mode. Active jobs cannot be restarted; repeated build delivery does not create a new generation.
+  - AC6: Resume rejects a different build, incompatible workflow contract, or changed analysis configuration before model invocation. When saved source context exists, the current PR head is checked before continuation. A deliberate restart permits the current workflow/configuration.
+  - AC7: Existing job databases migrate without losing results. A crash after the graph completes but before the job result is saved can recover the completed graph result.
+  - AC8: Checkpoints do not store configured credentials or raw provider exceptions. Evidence/code context remains on the same trusted data volume as job results. HTTP failures remain sanitized.
+  - AC9: Automated tests cover failure/resume, fresh restart, process termination/recovery, compatibility rejection, HTTP behavior, and old database migration. The non-LLM remote smoke test and packaging checks pass; any infrastructure limitation is recorded.
+- **Implementation tasks**:
+  - [x] Define IDs, terms, behavior, compatibility policy, and acceptance criteria.
+  - [x] Implement the graph, checkpoint persistence, and compatibility checks.
+  - [x] Integrate queue recovery and HTTP execution controls.
+  - [x] Verify AC and update actual architecture/API documentation.
+- **Compatibility policy**: persist a workflow contract version and a configuration/prompt fingerprint; reject incompatible resume without erasing the old checkpoint. The operator may explicitly restart. No automatic checkpoint migration across incompatible workflow contracts.
+- **Dependency**: PBI-001.
+- **Evidence**: verified 2026-10-09: 66 local tests pass, including real process termination/recovery with SQLite and HTTP retry/restart; model-message/schema/result baseline unchanged; PR #31 live smoke exit 0 (trace completeness warning only); wheel build and all 69 packaged Python files/imports verified; Ruff and diff checks pass. [AC-to-evidence mapping and verification limits](structure/langgraph-execution.md#acceptance-evidence).
+- **Verification limits**: no live model call or deployment of the new Agent image; process recovery was verified using persistent local files, not a restart of the existing Agent container.
 
-- **排序**：7；**狀態**：待辦；**授權**：尚未授權本輪部署。
-- **價值**：Jenkins 能透過既有 Traefik 自動提交新版分析。
-- **驗收條件**：容器健康、認證、重送去重、恢復、Jenkins 接線與非 LLM smoke 通過；真實模型驗證需有對應授權；部署來源留在 test_Agent；不得 git push。
-- **依賴**：本次要發布的 PBI 都已驗收；另需確認 Jenkins 實際使用的 pipeline 版本。
+## PBI-003 — Bound model request frequency and retries
 
-## PBI-008 — 明確表達 Existing Tests 的參考價值與缺席原因
+- **Order**: 3; **Status**: Needs refinement; **Authorization**: not authorized.
+- **Outcome**: control waiting time and request volume during analysis.
+- **Proposed scope**: a shared in-process rate limiter, timeouts, bounded retries, and available usage metadata configured through values.yaml.
+- **Draft AC**: nodes share a limiter; non-retryable failures stop; retry limits are explicit; model/prompt identity, latency, and available token usage are recorded; request limits are distinguished from token/cost budgets.
+- **Open decisions**: numeric limits, timeout/retry policy, and ownership relative to graph recovery.
+- **Dependencies**: PBI-001; PBI-002 recovery semantics.
+- **Evidence**: none; not implemented.
 
-- **排序**：8；**狀態**：待釐清；**授權**：尚未授權。
-- **價值**：區分功能相關測試、環境／寫法參考，以及無合適候選，避免誤讀推薦。
-- **驗收條件草案**：每個 focal method 都有結果或缺席原因；dynamic／llm 證據不可混淆；trace 不完整時不能推論不存在呼叫。
-- **待決定**：推薦分類、候選不足策略與輸出契約。
+## PBI-004 — Trace analysis execution and model calls
 
-## 待評估想法（尚非可實作 PBI）
+- **Order**: 4; **Status**: Needs refinement; **Authorization**: not authorized.
+- **Outcome**: locate failures and inspect the evidence supplied to a model node.
+- **Proposed scope**: correlate PR/build/job with node/model invocations and record execution metadata.
+- **Draft AC**: correlated traces include duration and failures; credentials are excluded; analysis works when tracing is disabled.
+- **Open decisions**: LangSmith versus Langfuse, hosting, and permitted input/output recording.
+- **Evidence**: none; no tracing platform has been added.
 
-- Skills／Deep Agents middleware：出現可重用知識、按需讀取上下文或循環修正需求時再細化。
-- PR Summary：目前採標題、內文與 diff；未要求增加留言或外部連結抓取。
+## PBI-005 — Produce actionable uncovered-code analysis
+
+- **Order**: 5; **Status**: Needs refinement; **Authorization**: not authorized.
+- **Outcome**: downstream test generation receives missing behavior, triggering conditions, and expected outcomes.
+- **Proposed scope**: use PR summary, diff, and method context; organize output by method/behavior and distinguish evidence from inference.
+- **Draft AC**: cited methods/lines exist in the input; suggested conditions/outcomes are explicit; unsupported causes of missing coverage are not presented as facts; deterministic coverage evidence is retained; fixed cases support comparison.
+- **Open decisions**: output contract, compatibility, and quality evaluation criteria.
+- **Dependency**: PBI-001.
+- **Evidence**: none; existing prompts remain unchanged.
+
+## PBI-006 — Evaluate analysis quality across prompt and model versions
+
+- **Order**: 6; **Status**: Needs refinement; **Authorization**: not authorized.
+- **Outcome**: evaluate changes against repeatable cases and stated quality criteria.
+- **Proposed scope / draft AC**: replayable cases; automated reference/schema checks; human semantic assessment; model/prompt version, latency, and usage records; separation of offline checks and paid validation.
+- **Open decisions**: case selection, assessment rubric, and required quality thresholds.
+- **Dependency**: agreed PBI-005 evaluation criteria; an external tracing service is optional.
+- **Evidence**: PBI-001 provides a behavior baseline, not a semantic-quality benchmark.
+
+## PBI-007 — Deploy and verify a selected Agent release
+
+- **Order**: 7; **Status**: Needs refinement; **Authorization**: no new Agent deployment authorized for PBI-002.
+- **Outcome**: Jenkins can submit builds automatically to the selected release through shared Traefik.
+- **Proposed scope / draft AC**: container health, authentication, duplicate submissions, recovery, Jenkins integration, and non-LLM smoke validation; deployment sources stay in this repository.
+- **Open decisions**: release contents and Jenkins pipeline revision. Live model validation requires applicable authorization.
+- **Evidence**: earlier deployment exists; deployment of the forthcoming LangGraph release has not occurred.
+
+## PBI-008 — Explain the relevance or absence of existing test context
+
+- **Order**: 8; **Status**: Needs refinement; **Authorization**: not authorized.
+- **Outcome**: distinguish behavior-relevant tests, setup/style references, and absent suitable candidates.
+- **Draft AC**: each focal method has context or an absence reason; observed and recommended associations remain distinct; incomplete traces do not prove that a caller is absent.
+- **Open decisions**: classification, insufficient-candidate strategy, and output schema.
+- **Evidence**: none; not implemented.
+
+## Ideas not selected for implementation
+
+- Skills / Deep Agents middleware: refine only when reusable knowledge, selective context loading, or iterative repair is needed.
+- PR Summary: current scope uses title, description, and diff; comment/link retrieval has not been requested.

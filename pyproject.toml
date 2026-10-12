@@ -11,6 +11,8 @@ dependencies = [
     "fastapi>=0.143.0",
     "langchain>=1.4.3",
     "langchain-google-genai>=4.4.0",
+    "langgraph>=1.2.14,<2",
+    "langgraph-checkpoint-sqlite>=3.1.1",
     "pydantic>=2.13.5",
     "pyyaml>=6.0.3",
     # 0.26.0 corrupts Point references; see upstream issue #472.

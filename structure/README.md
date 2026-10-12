@@ -1,10 +1,11 @@
 # 目前專案架構
 
 本文件記錄目前實作。程式按**元件類型**分類，維持一個 Python 專案、一個套件；以組合注入依賴。
-`nodes` 是固定流程中的分析操作，目前由普通 Python 函式執行，尚未導入 LangGraph。
+`workflow.py` 使用 LangGraph 編排固定流程；`nodes` 提供可保存輸出的分析操作。
+HTTP service 使用持久化 SQLite checkpoint，詳見 [LangGraph 執行與恢復](langgraph-execution.md)。
 
 功能報告：[Coverage](coverage-analysis.md)、[Existing Tests](existing-tests-analysis.md)。
-工作進度與驗收：[Product Backlog](../BACKLOG.md)。本次重整：[遷移與驗證](structure-refactor.md)。
+工作進度與驗收：[Product Backlog](../BACKLOG.md)。PBI-001 重整紀錄：[遷移與驗證](structure-refactor.md)。
 
 ## 根目錄
 
@@ -36,11 +37,12 @@ src/codebase_analysis/
 ├── settings.py                  values.yaml 載入、設定與 secret 驗證
 ├── interfaces.py                收集與分析所需的 Protocol
 ├── collection.py                非 LLM 資料收集、版本核對、方法上下文組裝
-├── workflow.py                  收集 → 三個分析操作 → 引用驗證
+├── workflow.py                  LangGraph 編排、checkpoint 相容性核對與恢復
 ├── tasks.py                     提交範圍檢查、領取任務、執行與保存結果
 ├── worker.py                    背景迴圈、啟停與單一 worker 鎖
 ├── smoke.py                     非 LLM 檢查流程及逐項結果
 ├── nodes/
+│   ├── workflow.py              收集與分析操作的 graph state 轉接
 │   ├── analysis.py              以共用 client 組合三個操作，符合 AnalysisModel 介面
 │   ├── context.py               共用 PR 輸入裁切與截斷標示
 │   ├── pr.py                    PR 摘要的輸入與模型結果轉換
@@ -70,8 +72,10 @@ src/codebase_analysis/
 │   │   ├── coverage.py          JaCoCo／Cobertura XML 正規化
 │   │   ├── metadata.py          Coverage metadata JSON 正規化
 │   │   ├── trace.py             Per-test trace JSON 正規化
+│   │   ├── state.py             持久化 state 轉回分析 dataclass
 │   │   └── java.py              Java AST、方法、annotation 與宣告檔案上下文
 │   └── rules/
+│       ├── build.py            提交 build 與收集證據的身分核對
 │       ├── paths.py            Maven Java 來源與測試路徑分類
 │       ├── selection.py        測試候選篩選與排序
 │       ├── coverage.py         Diff 新增行與 coverage 交集
@@ -84,13 +88,15 @@ src/codebase_analysis/
 │   ├── source.py               SourceMethod、FocalMethod、TestContext、ExistingTest
 │   ├── trace.py                TraceReport、TestInvocation、MethodReference
 │   ├── analysis.py             AnalysisResult、LlmFindings、AgentResult
-│   └── task.py                 BuildRequest 與 AnalysisJob
+│   ├── task.py                 BuildRequest、AnalysisJob、generation 與 mode
+│   └── state.py                可保存的 AnalysisState
 ├── schemas/
 │   ├── http.py                 HTTP request 驗證與 BuildRequest 轉換
 │   ├── llm.py                  Structured output 契約
 │   ├── metadata.py             Coverage metadata wire schema
 │   └── trace.py                Java trace wire schema
 └── repositories/
+    ├── checkpoints.py          SQLite checkpoint saver 生命週期
     ├── base.py                 JobStore Protocol
     └── sqlite.py               任務持久化、原子 claim、去重、retry
 ```
@@ -107,7 +113,7 @@ src/codebase_analysis/
 - **Workflow** 決定順序；**collection** 協調確定性證據收集。
 - **Repository** 管理任務資料；**tasks** 管理任務範圍與執行；**worker** 管理執行生命週期。
 - **Lib** 是同套件內可直接 import 的實作，不是獨立 repo 或 uv workspace。不能反向依賴 tools、nodes 或 controller。
-- `models`、`lib/rules`、`collection`、`workflow`、`tasks` 不直接依賴 FastAPI、LangChain 或 Pydantic。
+- `models`、`lib/rules`、`collection`、`tasks` 不直接依賴 FastAPI、LangChain 或 Pydantic。`workflow` 負責 LangGraph 框架整合。
 
 ```mermaid
 flowchart TD
@@ -120,6 +126,7 @@ flowchart TD
     Bootstrap --> Workflow[workflow]
     Workflow --> Collection[collection]
     Workflow --> Nodes[nodes]
+    Workflow --> Checkpoints[注入的 checkpoint saver]
     Collection --> Tools[注入的 tools]
     Tools --> Clients[lib/clients]
     Tools --> Parsers[lib/parsers]
@@ -153,9 +160,13 @@ Coverage 交集、Java 方法分組及 trace 對應由純程式計算。綠色�
 
 ```text
 Jenkins → controller → AnalysisJobs.submit → SQLite
+worker 啟動 → recover_running（同 generation，mode=resume）
 worker → AnalysisJobs.process_next
+       → 開啟該次執行的 SQLite checkpoint saver
        → bootstrap.settings_for_build → build_agent
        → workflow.CodebaseAnalysisAgent.run
+           → 檢查已保存的 manifest；resume 時核對目前 PR head
+           → 有進度時接續未完成節點；沒有進度時開始以下流程
            → collection.CodebaseAnalysis.run
                PR / coverage / trace → 版本核對 → coverage 交集
                → 原始碼與測試讀取 → Java AST → 缺口方法與 observed callers
@@ -184,6 +195,6 @@ coverage node 目前不把 PR summary 當成輸入；這項品質改善留在 ba
 - 原始碼與測試取自 PR head；metadata／trace 必須與該 revision 和 coverage bytes 一致。
 - Java trace producer 在 Jenkins agent／sandbox 執行；Python 容器只下載、解析、分析 artifacts。
 - 部署檔留在本專案，共用 Traefik 的 `/test-agent` 路由。見 [controller 與部署](controller-deployment.md)。
-- 本次重整沒有部署新容器，既有容器不會因本機檔案移動而自動更新。
+- PBI-002 沒有部署新版 Agent 容器，既有容器不會因本機檔案移動而自動更新。
 
 安裝與操作見[根目錄 README](../README.md)。

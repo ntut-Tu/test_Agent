@@ -1,8 +1,11 @@
 """Compose clients, tools, analysis nodes and build-specific settings."""
 
+import json
+from hashlib import sha256
 from urllib.parse import quote
 
 from langchain.chat_models import init_chat_model
+from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from codebase_analysis.collection import CodebaseAnalysis
 from codebase_analysis.lib.clients.github import GitHubApi
@@ -12,6 +15,8 @@ from codebase_analysis.lib.clients.langchain import LangChainClient
 from codebase_analysis.lib.parsers.java import JavaSourceAnalyzer
 from codebase_analysis.models.task import BuildRequest
 from codebase_analysis.nodes.analysis import AnalysisNodes
+from codebase_analysis.prompts import coverage as coverage_prompt
+from codebase_analysis.prompts import existing_tests, pr
 from codebase_analysis.settings import CollectionSettings, Settings
 from codebase_analysis.tools.coverage import JenkinsCoverage
 from codebase_analysis.tools.existing_tests import (
@@ -66,11 +71,12 @@ def build_collector(settings: CollectionSettings) -> CodebaseAnalysis:
     )
 
 
-def build_agent(settings: Settings) -> CodebaseAnalysisAgent:
+def build_agent(settings: Settings, *, checkpointer: BaseCheckpointSaver | None = None) -> CodebaseAnalysisAgent:
     """Assemble collection and a LangChain model from complete settings.
 
     Args:
         settings: Parsed values configuration, including model credentials.
+        checkpointer: Optional saver whose connection lifetime is managed by the caller.
 
     Returns:
         Agent ready to run analysis. Construction does not collect evidence.
@@ -88,7 +94,10 @@ def build_agent(settings: Settings) -> CodebaseAnalysisAgent:
     chat_model = init_chat_model(
         settings.llm.model, model_provider=settings.llm.provider, **options,
     )
-    return CodebaseAnalysisAgent(collector, AnalysisNodes(LangChainClient(chat_model)))
+    return CodebaseAnalysisAgent(
+        collector, AnalysisNodes(LangChainClient(chat_model)), checkpointer=checkpointer,
+        configuration_fingerprint=analysis_fingerprint(settings),
+    )
 
 
 def settings_for_build(settings: Settings, build: BuildRequest) -> Settings:
@@ -107,3 +116,21 @@ def settings_for_build(settings: Settings, build: BuildRequest) -> Settings:
         'trace_url': f'{base}/java-test-trace.json',
     })
     return settings.model_copy(update={'jenkins': jenkins})
+
+
+def analysis_fingerprint(settings: Settings) -> str:
+    """Identify settings and prompts that cannot be mixed during resume.
+
+    Only the digest is persisted. Credentials in named secret fields are excluded
+    so credential rotation does not invalidate progress. Provider options are
+    hashed, never stored as checkpoint metadata.
+    """
+    inputs = {
+        'provider': settings.llm.provider, 'model': settings.llm.model,
+        'options': settings.llm.options,
+        'collection': settings.analysis.model_dump(mode='json'),
+        'code_host': settings.code_host.model_dump(mode='json', exclude={'token'}),
+        'jenkins': settings.jenkins.model_dump(mode='json', exclude={'username', 'api_token'}),
+        'prompts': [pr.INSTRUCTIONS, coverage_prompt.INSTRUCTIONS, existing_tests.INSTRUCTIONS],
+    }
+    return sha256(json.dumps(inputs, sort_keys=True, ensure_ascii=False).encode()).hexdigest()

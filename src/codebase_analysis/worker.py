@@ -24,7 +24,7 @@ class AnalysisWorker:
         except OSError:
             self.lock.close()
             raise RuntimeError('Use one Agent instance/worker per data volume') from None
-        self.store.interrupt_running()
+        self.store.recover_running()
         self.thread.start()
 
     def _run(self) -> None:

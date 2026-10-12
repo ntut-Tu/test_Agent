@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from codebase_analysis.bootstrap import build_agent, settings_for_build
 from codebase_analysis.controller import analysis_router
+from codebase_analysis.repositories.checkpoints import open_checkpoints
 from codebase_analysis.repositories.sqlite import SqliteJobStore
 from codebase_analysis.settings import Settings, SettingsError, load_settings
 from codebase_analysis.tasks import AnalysisJobs
@@ -25,10 +26,15 @@ def create_app(settings: Settings | None = None, *, analyze=None) -> FastAPI:
     data = Path(settings.service.data_directory)
     store = SqliteJobStore(data / 'jobs.sqlite3', settings.service.max_pending)
 
-    def run(build):
-        return build_agent(settings_for_build(settings, build)).run(build.number, build=build)
+    def run(job):
+        if analyze is not None:
+            return analyze(job.request)
+        with open_checkpoints(data / 'checkpoints.sqlite3') as saver:
+            agent = build_agent(settings_for_build(settings, job.request), checkpointer=saver)
+            return agent.run(job.request.number, build=job.request, thread_id=job.thread_id,
+                             resume=job.execution_mode == 'resume')
 
-    jobs = AnalysisJobs(store, analyze or run, provider=settings.code_host.provider,
+    jobs = AnalysisJobs(store, run, provider=settings.code_host.provider,
                         repository=settings.code_host.repository, job_name=settings.jenkins.job_name)
     worker = AnalysisWorker(jobs, store, data / 'worker.lock')
 
